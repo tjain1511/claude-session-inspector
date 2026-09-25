@@ -191,10 +191,12 @@ function requireSource() {
 // ---------- API ----------
 
 async function handleApi(req, res, url) {
-  if (req.headers['x-csv-token'] !== TOKEN) return send(res, 403, { error: 'missing or invalid token' });
   const parts = url.pathname.split('/').filter(Boolean); // ['api', ...]
   const [, resource, id, sub, subId] = parts;
   const q = url.searchParams;
+  // EventSource cannot set request headers, so the SSE endpoint alone accepts the token as a query param.
+  const presented = req.headers['x-csv-token'] || (resource === 'events' ? q.get('token') : null);
+  if (presented !== TOKEN) return send(res, 403, { error: 'missing or invalid token' });
 
   if (resource === 'status' && req.method === 'GET') return send(res, 200, statusPayload());
 

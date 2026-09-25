@@ -18,6 +18,7 @@ const ctx = await esbuild.context({
   sourcemap: watch ? 'inline' : false,
   define: { 'process.env.NODE_ENV': watch ? '"development"' : '"production"' },
   loader: { '.css': 'css' },
+  alias: { '@': './src' },
   logLevel: 'info',
 });
 

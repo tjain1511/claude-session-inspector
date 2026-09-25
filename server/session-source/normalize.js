@@ -93,6 +93,7 @@ export function normalizeRecord(rec, fileKey = 'main', opts = {}) {
             ...base(),
             id: `${base().id}#${i}`,
             type: 'tool_result',
+            block: i,
             toolUseId: b.tool_use_id,
             content: t.text,
             truncated: t.truncated,
@@ -173,10 +174,10 @@ export function normalizeRecord(rec, fileKey = 'main', opts = {}) {
         if (!b || typeof b !== 'object') return;
         if (b.type === 'text') {
           const t = text(b.text || '');
-          events.push({ ...base(), id, type: 'assistant', content: t.text, truncated: t.truncated, fullLength: t.fullLength, ...common });
+          events.push({ ...base(), id, block: i, type: 'assistant', content: t.text, truncated: t.truncated, fullLength: t.fullLength, ...common });
         } else if (b.type === 'thinking') {
           const t = text(b.thinking || '');
-          events.push({ ...base(), id, type: 'thinking', content: t.text, truncated: t.truncated, fullLength: t.fullLength, redacted: !b.thinking && !!b.signature, ...common });
+          events.push({ ...base(), id, block: i, type: 'thinking', content: t.text, truncated: t.truncated, fullLength: t.fullLength, redacted: !b.thinking && !!b.signature, ...common });
         } else if (b.type === 'redacted_thinking') {
           events.push({ ...base(), id, type: 'thinking', content: '', redacted: true, ...common });
         } else if (b.type === 'tool_use') {
@@ -194,6 +195,7 @@ export function normalizeRecord(rec, fileKey = 'main', opts = {}) {
           events.push({
             ...base(),
             id,
+            block: i,
             type: 'tool_call',
             toolUseId: b.id,
             tool: b.name,

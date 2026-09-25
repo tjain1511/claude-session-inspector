@@ -1,0 +1,103 @@
+// A tool call with its paired result (if any), timing, status, structured details
+// and — for Agent calls — the sub-agent's own timeline.
+import { useState } from 'react';
+import type { SessionEvent, SubagentSummary } from '@/types/session';
+import { Card } from '@/components/Timeline/Card';
+import { CodeBlock } from '@/components/CodeBlock/CodeBlock';
+import { CopyButton } from '@/components/common/CopyButton';
+import { Icon } from '@/components/common/Icon';
+import { ToolInput } from './ToolInput';
+import { ToolResultBody } from './ToolResult';
+import { SubagentPanel } from './SubagentPanel';
+import { formatDuration } from '@/utils/format';
+import { toolSummary } from '@/utils/events';
+import { prettyJson } from '@/utils/highlight';
+
+interface Props {
+  event: SessionEvent;
+  result: SessionEvent | undefined;
+  sessionId: string;
+  onRaw: (e: SessionEvent) => void;
+  query?: string;
+  forceOpen?: boolean | null;
+  outputLines: number;
+  subagent?: SubagentSummary;
+  live?: boolean;
+}
+
+export function ToolCallCard({ event: e, result, sessionId, onRaw, query, forceOpen, outputLines, subagent, live }: Props) {
+  const [showDetails, setShowDetails] = useState(false);
+  const durationMs = e.ts && result?.ts ? Date.parse(result.ts) - Date.parse(e.ts) : null;
+  const status: 'success' | 'error' | 'pending' = result ? (result.isError ? 'error' : 'success') : 'pending';
+  const desc = toolSummary(e.tool, e.input);
+  const inputText = typeof e.input === 'string' ? e.input : prettyJson(e.input);
+  return (
+    <Card
+      type="tool_call"
+      role="Tool"
+      title={e.tool}
+      desc={desc}
+      open={forceOpen ?? undefined}
+      extraClass={`status-${status}`}
+      right={
+        <>
+          {result?.interrupted && <span className="chip warn">interrupted</span>}
+          {result?.denied && <span className="chip warn" title={result.denied}>denied</span>}
+          {status === 'pending' && (live ? <span className="chip warn">running…</span> : <span className="chip">no result</span>)}
+          {status === 'error' && <span className="chip error">error</span>}
+          {durationMs != null && <span title="Time from tool call to result">{formatDuration(durationMs)}</span>}
+          {e.caller && e.caller !== 'direct' && <span title="Caller">{e.caller}</span>}
+        </>
+      }
+      copyText={inputText}
+      onRaw={() => onRaw(e)}
+      summary={desc || '(no input)'}
+    >
+      <div className="tool-section">
+        <div className="label">
+          Input
+          <span className="right">
+            <CopyButton text={inputText} label="Copy input" />
+          </span>
+        </div>
+        <ToolInput tool={e.tool || ''} input={e.input} initialLines={outputLines} query={query} />
+      </div>
+      {subagent && (
+        <div className="tool-section">
+          <div className="label">
+            <Icon name="agent" size={12} /> Sub-agent
+          </div>
+          <SubagentPanel sessionId={sessionId} agent={subagent} onRaw={onRaw} query={query} outputLines={outputLines} />
+        </div>
+      )}
+      {result ? (
+        <div className="tool-section">
+          <div className="label">
+            Output
+            <span className={`status status-${status}`}>{status === 'error' ? 'error' : 'ok'}</span>
+            {result.images ? <span>{result.images} image(s)</span> : null}
+            <span className="right">
+              {result.structured !== undefined && result.structured !== null && (
+                <button type="button" className="btn ghost sm" onClick={() => setShowDetails((s) => !s)} aria-pressed={showDetails} title="Structured tool result recorded by Claude Code (toolUseResult)">
+                  <Icon name="info" size={12} /> details
+                </button>
+              )}
+              <button type="button" className="btn ghost sm" onClick={() => onRaw(result)} title="View raw result record">
+                <Icon name="code" size={12} />
+              </button>
+              <CopyButton text={result.content || ''} label="Copy output" />
+            </span>
+          </div>
+          <ToolResultBody result={result} tool={e.tool} sessionId={sessionId} initialLines={outputLines} query={query} />
+          {showDetails && (
+            <div style={{ marginTop: 8 }}>
+              <CodeBlock code={prettyJson(result.structured)} lang="json" title="toolUseResult" initialLines={40} />
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="tool-section help-text">{live ? 'Waiting for the tool result…' : 'No result was recorded for this call (the session may have been interrupted).'}</div>
+      )}
+    </Card>
+  );
+}
