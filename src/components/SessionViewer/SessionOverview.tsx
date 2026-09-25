@@ -1,6 +1,6 @@
 import type { SessionSummary } from '@/types/session';
 import { formatCost, formatDateTime, formatDuration, formatNumber, formatShortDateTime, modelLabel } from '@/utils/format';
-import { modelRows } from './CostTable';
+import { recordedRows, estimatedRows, sessionCost } from './CostTable';
 
 function Cell({ k, v, cls, title }: { k: string; v: React.ReactNode; cls?: string; title?: string }) {
   if (v === null || v === undefined || v === '') return null;
@@ -20,8 +20,13 @@ export function SessionOverview({ session: s, onShowMetadata }: { session: Sessi
   for (const a of s.subagents) if (a.model && a.model !== s.model) agentModels.set(a.model, (agentModels.get(a.model) || 0) + 1);
   const extraModels = s.models.length - 1 + agentModels.size;
   const modelTitle = [...s.models.map((m) => `${m.name} ×${m.count} messages`), ...[...agentModels].map(([m, n]) => `${m} in ${n} sub-agent${n === 1 ? '' : 's'}`)].join('\n');
-  const rows = modelRows(s);
-  const costTitle = rows.length ? rows.map((r) => `${modelLabel(r.model)}: ${r.cost != null ? formatCost(r.cost) : '?'}`).join('\n') + '\nAs recorded by Claude Code · click for the breakdown' : 'As recorded by Claude Code';
+  const cost = sessionCost(s);
+  const rows = cost?.estimated ? estimatedRows(s.estimate) : recordedRows(s);
+  const costTitle = cost
+    ? rows.map((r) => `${modelLabel(r.model)}: ${r.cost != null ? formatCost(r.cost) : 'no rate'}`).join('\n') +
+      (cost.estimated ? '\nEstimated from token usage × the rate table (Settings → Pricing); Claude Code has not written a cost record for this session yet' : '\nAs recorded by Claude Code') +
+      '\nClick for the breakdown'
+    : '';
   const cacheTitle = `cache read ${formatNumber(s.usage.cacheRead)}\ncache write ${formatNumber(s.usage.cacheCreate)}\nSummed over API messages in the main transcript`;
   return (
     <div className="overview">
@@ -38,7 +43,13 @@ export function SessionOverview({ session: s, onShowMetadata }: { session: Sessi
       <Cell k="Tokens out" v={s.usage.output ? formatNumber(s.usage.output) : null} title={`output ${formatNumber(s.usage.output)}${s.usage.thinking ? `\nof which thinking ${formatNumber(s.usage.thinking)}` : ''}`} />
       {s.usage.cacheRead ? <Cell k="Cache read" v={formatNumber(s.usage.cacheRead)} title={cacheTitle} /> : null}
       {s.usage.cacheCreate ? <Cell k="Cache write" v={formatNumber(s.usage.cacheCreate)} title={cacheTitle} /> : null}
-      {s.cost?.totalCostUSD != null ? <Cell k="Cost" v={<button type="button" className="cell-btn" onClick={onShowMetadata}>{formatCost(s.cost.totalCostUSD)}{rows.length > 1 ? <small> {rows.length} models</small> : null}</button>} title={costTitle} /> : null}
+      {cost ? (
+        <Cell
+          k={cost.estimated ? 'Cost (est.)' : 'Cost'}
+          v={<button type="button" className="cell-btn" onClick={onShowMetadata}>{cost.estimated ? '≈ ' : ''}{formatCost(cost.usd)}{!cost.complete ? <small className="warn"> partial</small> : rows.length > 1 ? <small> {rows.length} models</small> : null}</button>}
+          title={costTitle}
+        />
+      ) : null}
       {s.subagents.length ? <Cell k="Sub-agents" v={s.subagents.length} /> : null}
     </div>
   );

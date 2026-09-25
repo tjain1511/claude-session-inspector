@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { useSettings } from '@/features/settings/settings';
 import type { StatusPayload } from '@/types/session';
+import { PricingSettings } from './PricingSettings';
 
 interface Props {
   status: StatusPayload | null;
@@ -65,8 +66,10 @@ export function SettingsPanel({ status, onClose, onChooseDir }: Props) {
           <button type="button" role="radio" aria-checked={s.timestamps === 'relative'} className={s.timestamps === 'relative' ? 'on' : ''} onClick={() => update({ timestamps: 'relative' })}>Relative</button>
         </div>
       </div>
+      <h4 className="settings-h4">Pricing</h4>
+      <PricingSettings />
       <p className="help-text" style={{ marginTop: 18 }}>
-        Everything stays on this machine. Preferences live in this browser's local storage; custom session names live in <code>~/.claude-session-viewer/metadata.json</code>. Claude's own files are never modified.
+        Everything stays on this machine. Rate overrides are saved in <code>~/.claude-session-viewer/settings.json</code>. Preferences live in this browser's local storage; custom session names live in <code>~/.claude-session-viewer/metadata.json</code>. Claude's own files are never modified.
       </p>
     </Modal>
   );

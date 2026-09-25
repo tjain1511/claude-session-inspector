@@ -16,6 +16,7 @@ import { readJsonlFrom, readRecordAt, readRecordAtLine } from './parser.js';
 import { createSummaryState, reduceRecord, summaryFromState } from './summarize.js';
 import { normalizeRecords } from './normalize.js';
 import { createContextState, reduceContext, contextFromState } from './context.js';
+import { mergeRates, estimateCost, checkRates } from '../pricing.js';
 import { isUuid, isAgentId, tildify, readJsonSafe, decodeProjectDirName } from '../paths.js';
 
 const CHUNK = 8 * 1024 * 1024;
@@ -228,8 +229,24 @@ export class ClaudeSessionSource extends SessionSource {
     const base = summaryFromState(entry.state);
     const cwd = base.cwd || decodeProjectDirName(entry.projectDirName);
     const recentMs = base.endedAt ? Date.now() - Date.parse(base.endedAt) : Infinity;
+    const subagents = [...entry.subagents.values()].map((s) => ({
+      agentId: s.agentId,
+      agentType: s.meta?.agentType || null,
+      description: s.meta?.description || null,
+      toolUseId: s.meta?.toolUseId || null,
+      spawnDepth: s.meta?.spawnDepth ?? null,
+      counts: s.state ? summaryFromState(s.state).counts : null,
+      prompt: s.state?.firstPrompt || null,
+      usage: s.state?.usage || null,
+      startedAt: s.state?.firstTs || null,
+      endedAt: s.state?.lastTs || null,
+      model: s.state ? summaryFromState(s.state).model : null,
+      sizeBytes: s.size ?? 0,
+      error: s.error || null,
+    }));
     return {
       ...base,
+      estimate: estimateCost(base.usageByModel, subagents, this.rates()),
       customName,
       title: customName || base.generatedTitle || 'Untitled session',
       project: { name: path.basename(cwd) || cwd, path: tildify(cwd), raw: cwd, dirName: entry.projectDirName },
@@ -238,22 +255,21 @@ export class ClaudeSessionSource extends SessionSource {
       loadError: entry.error || null,
       live: reg ? { pid: reg.pid, status: reg.status, updatedAt: reg.updatedAt } : null,
       recentlyActive: recentMs < 2 * 60 * 1000,
-      subagents: [...entry.subagents.values()].map((s) => ({
-        agentId: s.agentId,
-        agentType: s.meta?.agentType || null,
-        description: s.meta?.description || null,
-        toolUseId: s.meta?.toolUseId || null,
-        spawnDepth: s.meta?.spawnDepth ?? null,
-        counts: s.state ? summaryFromState(s.state).counts : null,
-        prompt: s.state?.firstPrompt || null,
-        usage: s.state?.usage || null,
-        startedAt: s.state?.firstTs || null,
-        endedAt: s.state?.lastTs || null,
-        model: s.state ? summaryFromState(s.state).model : null,
-        sizeBytes: s.size ?? 0,
-        error: s.error || null,
-      })),
+      subagents,
     };
+  }
+
+  /** Effective $/MTok rate table: defaults overridden by the user's settings. */
+  rates() {
+    return mergeRates(this.store.getSettings().rates);
+  }
+
+  /** Rate table plus how well it reproduces the costs Claude Code itself recorded. */
+  pricingReport() {
+    const rates = this.rates();
+    const records = [];
+    for (const e of this.index.values()) if (e.state?.cost?.modelUsage) records.push(e.state.cost.modelUsage);
+    return { rates, overrides: this.store.getSettings().rates || {}, accuracy: checkRates(records, rates), recordedSessions: records.length };
   }
 
   listSessions() {

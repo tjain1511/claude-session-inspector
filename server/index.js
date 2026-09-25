@@ -18,6 +18,7 @@ import { discoverClaudeDir, resolveProjectsDir } from './discovery.js';
 import { ClaudeSessionSource } from './session-source/ClaudeSessionSource.js';
 import { SummaryCache } from './session-source/cache.js';
 import { MetadataStore, MAX_NAME_LENGTH } from './store.js';
+import { isValidRate } from './pricing.js';
 import { ensureAppHome, tildify, isUuid, isAgentId } from './paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -221,6 +222,25 @@ async function handleApi(req, res, url) {
         await initSource();
       }
       return send(res, 200, statusPayload());
+    }
+  }
+
+  if (resource === 'pricing') {
+    const src = requireSource();
+    if (req.method === 'GET') return send(res, 200, src.pricingReport());
+    if (req.method === 'PUT') {
+      const body = await readBody(req);
+      const rates = body.rates && typeof body.rates === 'object' ? body.rates : {};
+      const clean = {};
+      for (const [m, r] of Object.entries(rates)) {
+        if (typeof m !== 'string' || m.length > 80 || !/^[\w.\-\[\]]+$/.test(m)) return send(res, 400, { error: `invalid model id: ${m}` });
+        if (r === null) clean[m] = null;
+        else if (isValidRate(r)) clean[m] = { input: r.input, cacheRead: r.cacheRead, cacheWrite: r.cacheWrite, output: r.output };
+        else return send(res, 400, { error: `invalid rate for ${m}: four non-negative numbers required` });
+      }
+      store.setSettings({ rates: clean });
+      broadcast({ type: 'sessions', updated: src.listSessions(), removed: [] });
+      return send(res, 200, src.pricingReport());
     }
   }
 

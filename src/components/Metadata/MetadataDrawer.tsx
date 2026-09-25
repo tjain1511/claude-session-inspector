@@ -5,7 +5,7 @@ import { CopyButton } from '@/components/common/CopyButton';
 import { formatBytes, formatCost, formatDateTime, formatDuration, formatNumber, modelLabel } from '@/utils/format';
 import { prettyJson } from '@/utils/highlight';
 import { CodeBlock } from '@/components/CodeBlock/CodeBlock';
-import { CostTable } from '@/components/SessionViewer/CostTable';
+import { CostTable, sessionCost } from '@/components/SessionViewer/CostTable';
 
 function Row({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) {
   if (v === null || v === undefined || v === '') return null;
@@ -71,10 +71,17 @@ export function MetadataDrawer({ session: s, onClose, onOpenSession }: { session
         <Row k="cache read" v={formatNumber(s.usage.cacheRead)} />
         <Row k="cache write" v={formatNumber(s.usage.cacheCreate)} />
         {s.cost && <Row k="cost (from log)" v={formatCost(s.cost.totalCostUSD)} />}
+        {s.estimate?.byModel.length ? <Row k="cost (estimated)" v={<>≈ {formatCost(s.estimate.totalUSD)}{!s.estimate.complete ? <span className="chip warn" style={{ marginLeft: 6 }}>partial</span> : null}{s.cost?.totalCostUSD ? <span className="help-text"> vs recorded {formatCost(s.cost.totalCostUSD)}</span> : null}</>} /> : null}
         {s.cost && (s.cost.totalLinesAdded || s.cost.totalLinesRemoved) ? <Row k="lines changed" v={`+${s.cost.totalLinesAdded} / -${s.cost.totalLinesRemoved}`} /> : null}
       </div>
-      <h4>Per-model usage and cost (from Claude Code's cost-state)</h4>
+      <h4>{sessionCost(s)?.estimated ? 'Per-model usage and estimated cost (usage × rates from Settings → Pricing)' : "Per-model usage and cost (from Claude Code's cost-state)"}</h4>
       <CostTable session={s} />
+      {s.cost?.modelUsage && s.estimate?.byModel.length ? (
+        <details className="ctx-details" style={{ marginTop: 6 }}>
+          <summary>Estimate from this app's rate table, for comparison</summary>
+          <div style={{ padding: '0 0 8px' }}><CostTable session={s} mode="estimated" /></div>
+        </details>
+      ) : null}
       {s.cost?.modelUsage && (
         <details className="ctx-details" style={{ marginTop: 6 }}>
           <summary>Raw modelUsage</summary>

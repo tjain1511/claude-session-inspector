@@ -35,6 +35,7 @@ export function createSummaryState(id, { isAgent = false } = {}) {
     models: {},
     toolNames: {},
     usage: { input: 0, output: 0, cacheRead: 0, cacheCreate: 0, thinking: 0 },
+    usageByModel: {},
     lastUsageMsgId: null,
     cost: null,
     continuedIn: null,
@@ -128,6 +129,14 @@ export function reduceRecord(state, rec) {
         state.usage.cacheRead += u.cache_read_input_tokens || 0;
         state.usage.cacheCreate += u.cache_creation_input_tokens || 0;
         state.usage.thinking += u.output_tokens_details?.thinking_tokens || 0;
+        if (m.model && m.model !== '<synthetic>') {
+          const um = (state.usageByModel[m.model] ??= { input: 0, output: 0, cacheRead: 0, cacheCreate: 0, thinking: 0 });
+          um.input += u.input_tokens || 0;
+          um.output += u.output_tokens || 0;
+          um.cacheRead += u.cache_read_input_tokens || 0;
+          um.cacheCreate += u.cache_creation_input_tokens || 0;
+          um.thinking += u.output_tokens_details?.thinking_tokens || 0;
+        }
         state.lastUsageMsgId = m.id;
       }
       const blocks = Array.isArray(m.content) ? m.content : typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : [];
@@ -234,6 +243,7 @@ export function summaryFromState(state, extra = {}) {
       records: state.records,
     },
     usage: state.usage,
+    usageByModel: state.usageByModel || {},
     cost: state.cost,
     continuedIn: state.continuedIn,
     prLinks: state.prLinks,

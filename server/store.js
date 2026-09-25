@@ -36,7 +36,7 @@ export class MetadataStore {
     }
   }
   getSettings() {
-    return { dataDir: this.settings.dataDir ?? null };
+    return { dataDir: this.settings.dataDir ?? null, rates: this.settings.rates && typeof this.settings.rates === 'object' ? this.settings.rates : {} };
   }
   setSettings(patch) {
     this.settings = { ...this.settings, ...patch };

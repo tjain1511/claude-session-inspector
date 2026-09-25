@@ -89,6 +89,35 @@ export interface SessionEvent {
   label?: string;
 }
 
+export interface TokenUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreate: number;
+  thinking: number;
+}
+
+export interface Rate {
+  input: number; // US$ per million tokens
+  cacheRead: number;
+  cacheWrite: number;
+  output: number;
+}
+
+export interface CostEstimate {
+  totalUSD: number;
+  byModel: { model: string; usage: TokenUsage; rate: Rate | null; cost: number | null }[];
+  unknownModels: string[];
+  complete: boolean; // every model had a rate
+}
+
+export interface PricingReport {
+  rates: Record<string, Rate>;
+  overrides: Record<string, Rate | null>;
+  accuracy: { model: string; sessions: number; within1pct: number; maxRelErr: number; rate: Rate | null }[];
+  recordedSessions: number;
+}
+
 export interface SubagentSummary {
   agentId: string;
   agentType: string | null;
@@ -140,6 +169,8 @@ export interface SessionSummary {
   tools: { name: string; count: number }[];
   counts: SessionCounts;
   usage: { input: number; output: number; cacheRead: number; cacheCreate: number; thinking: number };
+  usageByModel: Record<string, TokenUsage>;
+  estimate: CostEstimate;
   cost: {
     totalCostUSD?: number;
     totalDuration?: number;
@@ -222,7 +253,7 @@ export interface StatusPayload {
   projectsDir: string | null;
   candidates: DiscoveryCandidate[];
   explicit: { path: string; ok: boolean; reason?: string } | null;
-  settings: { dataDir: string | null };
+  settings: { dataDir: string | null; rates?: Record<string, Rate | null> };
   platform: string;
   canReveal: boolean;
 }

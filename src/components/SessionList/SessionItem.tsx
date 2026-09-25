@@ -1,6 +1,8 @@
 import { memo, useState } from 'react';
 import type { SessionSummary } from '@/types/session';
 import { formatDuration, modelLabel, relativeTime } from '@/utils/format';
+import { sessionCost } from '@/components/SessionViewer/CostTable';
+import { formatCost } from '@/utils/format';
 import { Icon } from '@/components/common/Icon';
 import { InlineRename } from './InlineRename';
 
@@ -67,6 +69,7 @@ export const SessionItem = memo(function SessionItem({ session: s, selected, foc
         <span>{c.messages} msg</span>
         <span>{c.toolCalls} tools</span>
         {s.durationMs != null && s.durationMs > 0 && <span>{formatDuration(s.durationMs, { compact: true })}</span>}
+        {(() => { const k = sessionCost(s); return k && k.usd >= 0.005 ? <span className="cost" title={k.estimated ? 'Estimated cost (no cost record yet)' : 'Cost recorded by Claude Code'}>{k.estimated ? '≈' : ''}{formatCost(k.usd)}</span> : null; })()}
         {c.errors > 0 && <span className="err" title={`${c.toolErrors} tool errors, ${c.apiErrors} API errors`}>{c.errors} err</span>}
         {s.subagents.length > 0 && <span className="agents" title={`${s.subagents.length} sub-agents`}><Icon name="agent" size={11} />{s.subagents.length}</span>}
       </div>

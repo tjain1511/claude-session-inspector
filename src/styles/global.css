@@ -2914,3 +2914,69 @@ button.link:hover {
     width: 240px;
   }
 }
+
+/* ---------- pricing settings ---------- */
+.settings-h4 {
+  margin: 18px 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+}
+.rate-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.rate-table th,
+.rate-table td {
+  padding: 3px 4px;
+  text-align: left;
+  white-space: nowrap;
+}
+.rate-table th {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.rate-table .input.rate {
+  width: 72px;
+  height: 24px;
+  padding: 0 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-align: right;
+}
+.rate-table .verify .ok {
+  color: var(--success);
+}
+.rate-table .verify .warn {
+  color: var(--warning);
+}
+.pricing-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.pricing-actions .input {
+  max-width: 280px;
+}
+.pricing-actions .grow {
+  flex: 1;
+}
+.pricing .help-text {
+  margin-top: 8px;
+  line-height: 1.45;
+}
+.cost-table.estimated th:nth-child(7) {
+  color: var(--warning);
+}
+.overview .cell .v small.warn {
+  color: var(--warning);
+}
+.session-item .meta .cost {
+  color: var(--text-2);
+}
