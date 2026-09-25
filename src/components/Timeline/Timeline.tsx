@@ -152,12 +152,22 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({ ev
         const idx = items.findIndex((it) => (it.kind === 'meta' ? it.events.some((e) => e.id === id) : it.e.id === id));
         if (idx < 0) return;
         if (idx >= mounted) setMounted(Math.min(items.length, idx + PAGE));
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const el = root.current?.querySelector(`[data-event-id="${CSS.escape(id)}"]`) as HTMLElement | null;
-            el?.scrollIntoView({ block: 'center' });
-          });
-        });
+        let tries = 0;
+        const go = () => {
+          const el = root.current?.querySelector(`[data-event-id="${CSS.escape(id)}"]`) as HTMLElement | null;
+          if (!el) {
+            if (tries++ < 40) setTimeout(go, 50); // wait for the window to mount
+            return;
+          }
+          // Align the card's header to the top (the scroller has scroll-padding-top) so tall
+          // cards such as Agent calls land with their title visible, not their middle.
+          el.scrollIntoView({ block: 'start' });
+          el.classList.remove('jump-flash');
+          void el.offsetWidth; // restart the animation if it is already running
+          el.classList.add('jump-flash');
+          setTimeout(() => el.classList.remove('jump-flash'), 1600);
+        };
+        setTimeout(go, 0);
       },
       mountAll: () => setMounted(Infinity),
     }),

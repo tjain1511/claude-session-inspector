@@ -2980,3 +2980,20 @@ button.link:hover {
 .session-item .meta .cost {
   color: var(--text-2);
 }
+
+/* ---------- jump target highlight ---------- */
+@keyframes jump-flash {
+  0% {
+    background: color-mix(in srgb, var(--tool) 22%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+.jump-flash {
+  animation: jump-flash 1.5s ease-out;
+}
+.event.jump-flash > .body > .card {
+  border-color: var(--tool);
+  transition: border-color 1.5s ease-out;
+}

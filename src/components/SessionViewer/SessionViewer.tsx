@@ -104,8 +104,16 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
   }, [currentMatchId]);
 
   const jump = useCallback((id: string) => timeline.current?.scrollToEvent(id), []);
-  // Jumping from the Gantt view: switch to the flow view first, then scroll once it has mounted.
+  // Jump to an event in the flow view from anywhere (outline, Gantt, sub-agent strip, time bar).
+  // If the flow view is already showing, scroll right away; otherwise switch first and scroll
+  // once it has mounted.
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const jumpFromGantt = useCallback((id: string) => {
+    if (viewRef.current === 'flow') {
+      timeline.current?.scrollToEvent(id);
+      return;
+    }
     pendingJump.current = id;
     setView('flow');
   }, []);
@@ -113,7 +121,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
     if (view === 'flow' && pendingJump.current) {
       const id = pendingJump.current;
       pendingJump.current = null;
-      requestAnimationFrame(() => timeline.current?.scrollToEvent(id));
+      setTimeout(() => timeline.current?.scrollToEvent(id), 0);
     }
   }, [view]);
   const callByToolUse = useMemo(() => {
