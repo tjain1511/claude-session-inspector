@@ -1,14 +1,15 @@
 // Chronological execution flow. Renders events in a window that grows as the user
 // scrolls (plus content-visibility for off-screen cards) so huge sessions stay smooth.
-import { memo, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react';
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react';
 import type { SessionEvent, SubagentSummary } from '@/types/session';
 import { useSettings } from '@/features/settings/settings';
 import { formatClock, formatDuration, formatOffset } from '@/utils/format';
 import { eventTs } from '@/utils/events';
 import { Icon } from '@/components/common/Icon';
-import { UserMessage, AssistantMessage, ThinkingBlock, ErrorCard, SystemCard, UnknownCard } from '@/components/Message/Messages';
+import { UserMessage, AssistantMessage, ThinkingBlock, ErrorCard, SystemCard, UnknownCard, AgentReportCard } from '@/components/Message/Messages';
 import { ToolCallCard } from '@/components/ToolCall/ToolCallCard';
 import { OrphanToolResult } from '@/components/ToolCall/ToolResult';
+import type { ForceOpen } from './Card';
 
 export type Item =
   | { kind: 'event'; e: SessionEvent; idx: number }
@@ -27,7 +28,7 @@ interface Props {
   query?: string;
   matchIds?: Set<string>;
   currentMatchId?: string | null;
-  forceOpen?: boolean | null;
+  forceOpen?: ForceOpen;
   outputLines: number;
   subagents: SubagentSummary[];
   nested?: boolean;
@@ -58,6 +59,11 @@ export function buildItems(events: SessionEvent[], showMeta: boolean, showThinki
       items.push({ kind: 'turn', e, idx: items.length });
       continue;
     }
+    if (e.type === 'metadata' && (e.kind === 'agent-report' || e.kind === 'task-notification')) {
+      flush();
+      items.push({ kind: 'event', e, idx: items.length });
+      continue;
+    }
     if (e.type === 'metadata' || e.type === 'attachment') {
       metaBuf.push(e);
       continue;
@@ -85,6 +91,32 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({ ev
     return min;
   }, [events]);
   const subByToolUse = useMemo(() => new Map(subagents.filter((s) => s.toolUseId).map((s) => [s.toolUseId as string, s])), [subagents]);
+  // agent short id (as it appears in origin.from) -> spawning tool_call event id
+  const callByAgent = useMemo(() => {
+    const byToolUse = new Map<string, string>();
+    for (const e of events) if (e.type === 'tool_call' && e.toolUseId) byToolUse.set(e.toolUseId, e.id);
+    const m = new Map<string, string>();
+    for (const s of subagents) {
+      const call = s.toolUseId ? byToolUse.get(s.toolUseId) : undefined;
+      if (call) {
+        m.set(s.agentId, call);
+        m.set(s.agentId.replace(/^agent-/, ''), call);
+      }
+    }
+    return m;
+  }, [events, subagents]);
+  const jumpAgent = useCallback((from: string) => callByAgent.get(from) ?? callByAgent.get(`agent-${from}`) ?? null, [callByAgent]);
+  useEffect(() => {
+    const h = (ev: Event) => {
+      const id = (ev as CustomEvent<string>).detail;
+      const idx = items.findIndex((it) => it.kind !== 'meta' && it.e.id === id);
+      if (idx < 0) return;
+      if (idx >= mounted) setMounted(Math.min(items.length, idx + PAGE));
+      requestAnimationFrame(() => requestAnimationFrame(() => (root.current?.querySelector(`[data-event-id="${CSS.escape(id)}"]`) as HTMLElement | null)?.scrollIntoView({ block: 'center' })));
+    };
+    document.addEventListener('csv:jump', h);
+    return () => document.removeEventListener('csv:jump', h);
+  }, [items, mounted]);
 
   // Reset window when switching sessions
   useEffect(() => {
@@ -174,7 +206,7 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({ ev
               {gap != null && gap > 0 && <span className="gap" title="Time since previous event">Δ {formatDuration(gap)}</span>}
             </div>
             <div className="body">
-              <EventBody e={e} result={result} sessionId={sessionId} onRaw={onRaw} query={isMatch ? query : undefined} forceOpen={forceOpen} outputLines={outputLines} subagent={e.toolUseId ? subByToolUse.get(e.toolUseId) : undefined} live={live} />
+              <EventBody e={e} result={result} sessionId={sessionId} onRaw={onRaw} query={isMatch ? query : undefined} forceOpen={forceOpen} outputLines={outputLines} subagent={e.toolUseId ? subByToolUse.get(e.toolUseId) : undefined} live={live} jumpAgent={jumpAgent} />
             </div>
           </div>
         );
@@ -194,8 +226,9 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({ ev
   );
 });
 
-const EventBody = memo(function EventBody({ e, result, sessionId, onRaw, query, forceOpen, outputLines, subagent, live }: { e: SessionEvent; result?: SessionEvent; sessionId: string; onRaw: (e: SessionEvent) => void; query?: string; forceOpen?: boolean | null; outputLines: number; subagent?: SubagentSummary; live?: boolean }) {
+const EventBody = memo(function EventBody({ e, result, sessionId, onRaw, query, forceOpen, outputLines, subagent, live, jumpAgent }: { e: SessionEvent; result?: SessionEvent; sessionId: string; onRaw: (e: SessionEvent) => void; query?: string; forceOpen?: ForceOpen; outputLines: number; subagent?: SubagentSummary; live?: boolean; jumpAgent?: (from: string) => string | null }) {
   const p = { event: e, sessionId, onRaw, query, forceOpen };
+  if (e.type === 'metadata') return <AgentReportCard {...p} onJumpAgent={jumpAgent} />;
   switch (e.type) {
     case 'user':
       return <UserMessage {...p} />;

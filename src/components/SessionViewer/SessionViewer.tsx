@@ -8,6 +8,9 @@ import { SessionTitle } from './SessionTitle';
 import { SessionOverview } from './SessionOverview';
 import { TimelineBar } from '@/components/Timeline/TimelineBar';
 import { Timeline, buildItems, type TimelineHandle } from '@/components/Timeline/Timeline';
+import { ToolGantt } from '@/components/Timeline/ToolGantt';
+import type { ForceOpen } from '@/components/Timeline/Card';
+import { SubagentStrip } from './SubagentStrip';
 import { FindBar } from '@/components/Search/FindBar';
 import { RawInspector } from '@/components/Metadata/RawInspector';
 import { eventSearchText } from '@/utils/events';
@@ -33,7 +36,9 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
   const [settings, update] = useSettings();
   const [find, setFind] = useState('');
   const [findIdx, setFindIdx] = useState(0);
-  const [forceOpen, setForceOpen] = useState<boolean | null>(null);
+  const [forceOpen, setForceOpen] = useState<ForceOpen>(null);
+  const [view, setView] = useState<'flow' | 'gantt'>('flow');
+  const pendingJump = useRef<string | null>(null);
   const [showBar, setShowBar] = useState(true);
   const timeline = useRef<TimelineHandle>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -77,6 +82,23 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
   }, [currentMatchId]);
 
   const jump = useCallback((id: string) => timeline.current?.scrollToEvent(id), []);
+  // Jumping from the Gantt view: switch to the flow view first, then scroll once it has mounted.
+  const jumpFromGantt = useCallback((id: string) => {
+    pendingJump.current = id;
+    setView('flow');
+  }, []);
+  useEffect(() => {
+    if (view === 'flow' && pendingJump.current) {
+      const id = pendingJump.current;
+      pendingJump.current = null;
+      requestAnimationFrame(() => timeline.current?.scrollToEvent(id));
+    }
+  }, [view]);
+  const callByToolUse = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of events) if (e.type === 'tool_call' && e.toolUseId) m.set(e.toolUseId, e.id);
+    return m;
+  }, [events]);
 
   // Auto-follow live sessions when the user is near the bottom
   useEffect(() => {
@@ -96,6 +118,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
   useEffect(() => {
     setFind('');
     setForceOpen(null);
+    setView('flow');
     setAutoScroll(true);
     scrollRef.current?.scrollTo({ top: 0 });
   }, [s.id]);
@@ -146,7 +169,8 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
           {s.continuedIn && (<><span className="sep">·</span><span className="chip">continued in another session</span></>)}
         </div>
         <SessionOverview session={s} />
-        {showBar && events.length > 1 && <TimelineBar events={events} onJump={jump} />}
+        {s.subagents.length > 0 && <SubagentStrip agents={s.subagents} onJump={(toolUseId) => { const id = toolUseId ? callByToolUse.get(toolUseId) : undefined; if (id) jumpFromGantt(id); }} />}
+        {showBar && events.length > 1 && <TimelineBar events={events} onJump={jumpFromGantt} />}
       </div>
       <div className="toolbar">
         <span>
@@ -156,13 +180,17 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
           {detail.partial && <span style={{ color: 'var(--warning)' }}> · file has an incomplete last line (write in progress)</span>}
         </span>
         <span className="grow" />
+        <div className="radio-row" role="tablist" aria-label="View">
+          <button type="button" role="tab" aria-selected={view === 'flow'} className={view === 'flow' ? 'on' : ''} onClick={() => setView('flow')} title="Chronological execution flow">Flow</button>
+          <button type="button" role="tab" aria-selected={view === 'gantt'} className={view === 'gantt' ? 'on' : ''} onClick={() => setView('gantt')} title="Tool calls on a time axis: see which ran in parallel">Timeline</button>
+        </div>
         <div className="type-toggles">
           <button type="button" className={`chip ${settings.showThinking ? 'active' : ''}`} onClick={() => update({ showThinking: !settings.showThinking })} aria-pressed={settings.showThinking} title="Show thinking blocks">thinking</button>
           <button type="button" className={`chip ${settings.showMetadata ? 'active' : ''}`} onClick={() => update({ showMetadata: !settings.showMetadata })} aria-pressed={settings.showMetadata} title="Show metadata and attachment records">metadata</button>
           <button type="button" className={`chip ${showBar ? 'active' : ''}`} onClick={() => setShowBar((v) => !v)} aria-pressed={showBar} title="Show time distribution bar">time bar</button>
         </div>
-        <button type="button" className="btn ghost sm" onClick={() => setForceOpen(forceOpen === false ? true : false)} title="Expand / collapse all cards (E)">
-          <Icon name={forceOpen === false ? 'expand' : 'collapse'} size={12} /> {forceOpen === false ? 'Expand all' : 'Collapse all'}
+        <button type="button" className="btn ghost sm" onClick={() => setForceOpen((f) => ({ open: !(f?.open ?? true), v: (f?.v ?? 0) + 1 }))} title="Expand / collapse all cards (E)">
+          <Icon name={forceOpen && !forceOpen.open ? 'expand' : 'collapse'} size={12} /> {forceOpen && !forceOpen.open ? 'Expand all' : 'Collapse all'}
         </button>
         <button type="button" className="btn ghost sm" onClick={() => { timeline.current?.mountAll(); requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })); }} title="Jump to the latest event">
           <Icon name="arrowDown" size={12} /> End
@@ -197,6 +225,8 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
               </div>
             ))}
           </div>
+        ) : view === 'gantt' ? (
+          <ToolGantt events={events} subagents={s.subagents} onJump={jumpFromGantt} />
         ) : (
           <>
             <Timeline ref={timeline} events={events} sessionId={s.id} onRaw={setRawEvent} query={debouncedFind} matchIds={matchIds} currentMatchId={currentMatchId} forceOpen={forceOpen} outputLines={outputLines} subagents={s.subagents} live={!!s.live} scrollParent={scrollRef} />

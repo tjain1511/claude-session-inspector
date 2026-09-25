@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { APP_HOME, readJsonSafe, writeJsonAtomic } from '../paths.js';
 
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 6;
 
 export class SummaryCache {
   constructor(dir = path.join(APP_HOME, 'cache')) {

@@ -5,9 +5,10 @@ import { classifyUserRecord, userText, titleFromPrompt, toolResultText, stringif
 
 const DIGEST_CAP = 512 * 1024; // chars of searchable text kept per session
 
-export function createSummaryState(id) {
+export function createSummaryState(id, { isAgent = false } = {}) {
   return {
     id,
+    isAgent,
     firstTs: null,
     lastTs: null,
     cwd: null,
@@ -97,7 +98,7 @@ export function reduceRecord(state, rec) {
           } else if (b.type === 'image') state.hasImages = true;
         }
       }
-      if (kind === 'human' && !rec.isSidechain) {
+      if (kind === 'human' && (!rec.isSidechain || state.isAgent)) {
         const text = userText(c);
         state.userMessages++;
         state.lastPrompt = titleFromPrompt(text) || state.lastPrompt;

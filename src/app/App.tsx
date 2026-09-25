@@ -40,6 +40,19 @@ function Shell() {
   const toast = useToast();
   const autoOpened = useRef(false);
 
+  // Theme: data-theme on <html>; 'system' follows prefers-color-scheme.
+  useEffect(() => {
+    const root = document.documentElement;
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const apply = () => {
+      const t = settings.theme === 'system' ? (mq.matches ? 'light' : 'dark') : settings.theme;
+      root.setAttribute('data-theme', t);
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [settings.theme]);
+
   const select = useCallback((id: string | null) => {
     setSelectedId(id);
     setShowSidebar(false);
@@ -168,6 +181,8 @@ function Shell() {
         onIssues={() => setShowIssues(true)}
         onToggleSidebar={() => setShowSidebar((v) => !v)}
         onHelp={() => setShowHelp(true)}
+        theme={settings.theme}
+        onToggleTheme={() => update({ theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light' })}
       />
       <aside className="sidebar">
         <div className="sidebar-top">

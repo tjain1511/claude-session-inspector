@@ -9,6 +9,7 @@ export interface Settings {
   showMetadata: boolean; // show collapsed metadata/attachment rows in the timeline
   showThinking: boolean;
   sidebarWidth: number;
+  theme: 'system' | 'dark' | 'light';
 }
 
 const KEY = 'csv.settings.v1';
@@ -20,6 +21,7 @@ const DEFAULTS: Settings = {
   showMetadata: true,
   showThinking: true,
   sidebarWidth: 320,
+  theme: 'system',
 };
 
 let current: Settings = load();

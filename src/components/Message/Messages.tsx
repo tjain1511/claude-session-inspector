@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SessionEvent } from '@/types/session';
-import { Card } from '@/components/Timeline/Card';
+import { Card, type ForceOpen } from '@/components/Timeline/Card';
 import { Markdown } from '@/utils/markdown';
 import { markMatches } from '@/components/CodeBlock/CodeBlock';
 import { CodeBlock } from '@/components/CodeBlock/CodeBlock';
 import { api } from '@/services/api';
+import { Icon } from '@/components/common/Icon';
 import { formatNumber, modelLabel } from '@/utils/format';
 import { firstLine, fullTextFromRaw } from '@/utils/events';
 
@@ -13,7 +14,7 @@ export interface EventCardProps {
   sessionId: string;
   onRaw: (e: SessionEvent) => void;
   query?: string;
-  forceOpen?: boolean | null;
+  forceOpen?: ForceOpen;
 }
 
 function useFullText(e: SessionEvent, sessionId: string) {
@@ -44,7 +45,7 @@ export function UserMessage({ event: e, sessionId, onRaw, query, forceOpen }: Ev
       role={KIND_LABEL[e.kind || 'human'] || 'User'}
       title={isCmd ? e.command?.name : undefined}
       desc={isCmd ? e.command?.args : undefined}
-      open={forceOpen ?? undefined}
+      force={forceOpen}
       right={
         <>
           {e.permissionMode && <span title="Permission mode">{e.permissionMode}</span>}
@@ -113,11 +114,11 @@ export function AssistantMessage({ event: e, sessionId, onRaw, query, forceOpen 
     <Card
       type="assistant"
       role="Claude"
-      open={forceOpen ?? undefined}
+      force={forceOpen}
       right={
         <>
           {e.model && <span title={e.model}>{modelLabel(e.model)}</span>}
-          {u && u.output != null && <span title={`Tokens for this API message — in ${formatNumber(u.input)} · cache read ${formatNumber(u.cacheRead)} · cache write ${formatNumber(u.cacheCreate)} · out ${formatNumber(u.output)}${u.thinking ? ` (thinking ${formatNumber(u.thinking)})` : ''}`}>{formatNumber(u.output)} out</span>}
+          {u && u.output != null && <span title={`Tokens for this API message\nuncached input ${formatNumber(u.input)}\ncache read ${formatNumber(u.cacheRead)}\ncache write ${formatNumber(u.cacheCreate)}\noutput ${formatNumber(u.output)}${u.thinking ? `\nof which thinking ${formatNumber(u.thinking)}` : ''}`}>{formatNumber((u.input ?? 0) + (u.cacheRead ?? 0) + (u.cacheCreate ?? 0))} in · {formatNumber(u.output)} out</span>}
           {e.stopReason && e.stopReason !== 'tool_use' && e.stopReason !== 'end_turn' && <span className="chip warn">{e.stopReason}</span>}
         </>
       }
@@ -145,7 +146,7 @@ export function ThinkingBlock({ event: e, sessionId, onRaw, query, forceOpen }: 
       type="thinking"
       role="Thinking"
       defaultOpen={false}
-      open={forceOpen ?? undefined}
+      force={forceOpen}
       right={<span>{e.redacted ? 'redacted' : `${formatNumber(chars)} chars`}</span>}
       copyText={text}
       onRaw={() => onRaw(e)}
@@ -163,13 +164,42 @@ export function ThinkingBlock({ event: e, sessionId, onRaw, query, forceOpen }: 
   );
 }
 
+/** Report handed back by a sub-agent, or a background task notification. Links to the spawning tool call. */
+export function AgentReportCard({ event: e, sessionId, onRaw, query, forceOpen, onJumpAgent }: EventCardProps & { onJumpAgent?: (from: string) => string | null }) {
+  const { text, truncated, load } = useFullText(e, sessionId);
+  const isReport = e.kind === 'agent-report';
+  const target = e.originFrom && onJumpAgent ? onJumpAgent(e.originFrom) : null;
+  return (
+    <Card
+      type="system"
+      role={isReport ? 'Agent report' : 'Task notification'}
+      desc={e.originFrom ? `from ${e.originFrom}` : undefined}
+      defaultOpen={isReport}
+      force={forceOpen}
+      right={target ? <button type="button" className="btn ghost sm" onClick={(ev) => { ev.stopPropagation(); (onJumpAgent as (f: string) => string | null)(e.originFrom!); document.dispatchEvent(new CustomEvent('csv:jump', { detail: target })); }} title="Jump to the tool call that spawned this agent"><Icon name="agent" size={12} /> spawning call</button> : undefined}
+      copyText={text}
+      onRaw={() => onRaw(e)}
+      summary={firstLine(text)}
+    >
+      <div className="msg-text">
+        {query ? markMatches(text, query.toLowerCase()) : text}
+        {truncated && (
+          <div className="cb-more" style={{ marginTop: 6 }}>
+            Truncated · <button type="button" onClick={() => void load()}>Load full</button>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export function ErrorCard({ event: e, onRaw, forceOpen }: EventCardProps) {
   return (
     <Card
       type="error"
       role="Error"
       title={e.subtype}
-      open={forceOpen ?? undefined}
+      force={forceOpen}
       right={e.retry ? <span>retry {e.retry.attempt}/{e.retry.max} in {e.retry.inMs}ms</span> : e.status ? <span>HTTP {e.status}</span> : undefined}
       copyText={e.content}
       onRaw={() => onRaw(e)}
@@ -184,7 +214,7 @@ export function SystemCard({ event: e, onRaw, forceOpen }: EventCardProps) {
   const label = e.subtype === 'interrupted' ? 'Interrupted' : e.subtype === 'away_summary' ? 'Recap' : e.subtype === 'local_command' ? 'Local command' : 'System';
   const isXml = (e.content || '').trimStart().startsWith('<');
   return (
-    <Card type="system" role={label} defaultOpen={e.subtype !== 'local_command'} open={forceOpen ?? undefined} copyText={e.content} onRaw={() => onRaw(e)} summary={firstLine(e.content || '')} right={e.durationMs != null ? <span>{e.durationMs}ms</span> : undefined}>
+    <Card type="system" role={label} defaultOpen={e.subtype !== 'local_command'} force={forceOpen} copyText={e.content} onRaw={() => onRaw(e)} summary={firstLine(e.content || '')} right={e.durationMs != null ? <span>{e.durationMs}ms</span> : undefined}>
       {isXml ? <CodeBlock code={e.content || ''} lang="text" compact initialLines={20} /> : <div className="msg-text">{e.content}</div>}
     </Card>
   );
@@ -192,7 +222,7 @@ export function SystemCard({ event: e, onRaw, forceOpen }: EventCardProps) {
 
 export function UnknownCard({ event: e, onRaw, forceOpen }: EventCardProps) {
   return (
-    <Card type="unknown" role="Unknown" desc={e.label || e.kind} defaultOpen={false} open={forceOpen ?? undefined} onRaw={() => onRaw(e)} summary="Unrecognized record type — open the raw event to inspect it.">
+    <Card type="unknown" role="Unknown" desc={e.label || e.kind} defaultOpen={false} force={forceOpen} onRaw={() => onRaw(e)} summary="Unrecognized record type — open the raw event to inspect it.">
       <div className="msg-text help-text">This record type is not understood by this version of the viewer. Use "view raw" to inspect the original JSON.</div>
     </Card>
   );

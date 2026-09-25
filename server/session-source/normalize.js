@@ -134,7 +134,7 @@ export function normalizeRecord(rec, fileKey = 'main', opts = {}) {
       } else {
         // meta / system-reminder / task-notification / command-output / agent-report
         const t = text(raw, 16 * 1024);
-        events.push({ ...base(), type: 'metadata', kind, content: t.text, truncated: t.truncated, fullLength: t.fullLength, origin: o.origin?.kind });
+        events.push({ ...base(), type: 'metadata', kind, content: t.text, truncated: t.truncated, fullLength: t.fullLength, origin: o.origin?.kind, originFrom: o.origin?.from || o.origin?.senderTaskId || null });
       }
       break;
     }

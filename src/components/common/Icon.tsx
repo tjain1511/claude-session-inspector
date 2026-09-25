@@ -27,6 +27,7 @@ const PATHS: Record<string, string> = {
   reset: 'M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2v3h3',
   sidebar: 'M2 3h12v10H2zM6 3v10',
   bolt: 'M9 2L3 9h4l-1 5 6-7H8z',
+  theme: 'M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1 1M11.2 11.2l1 1M3.8 12.2l1-1M11.2 4.8l1-1M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   agent: 'M8 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM2.5 14a5.5 5.5 0 0 1 11 0M11 5h3M12.5 3.5v3',
 };
 

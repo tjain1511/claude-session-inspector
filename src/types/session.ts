@@ -51,6 +51,7 @@ export interface SessionEvent {
   permissionMode?: string;
   entrypoint?: string;
   origin?: string;
+  originFrom?: string | null;
   // assistant / thinking / tool_call
   model?: string | null;
   messageId?: string | null;
@@ -98,6 +99,8 @@ export interface SubagentSummary {
   startedAt: string | null;
   endedAt: string | null;
   model: string | null;
+  prompt: string | null;
+  usage: { input: number; output: number; cacheRead: number; cacheCreate: number; thinking: number } | null;
   sizeBytes: number;
   error: string | null;
 }

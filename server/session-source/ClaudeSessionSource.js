@@ -45,7 +45,7 @@ export class ClaudeSessionSource extends SessionSource {
   // ---------- indexing ----------
 
   /** Parse (or resume parsing) one transcript file, returning the reducer state. */
-  indexFile(file, id) {
+  indexFile(file, id, opts = {}) {
     const st = safeStat(file);
     if (!st) throw new Error('file vanished');
     const cached = this.cache.get(file);
@@ -57,7 +57,7 @@ export class ClaudeSessionSource extends SessionSource {
       ({ state, offset, line } = cached);
       errors = cached.errors || [];
     } else {
-      state = createSummaryState(id);
+      state = createSummaryState(id, opts);
       offset = 0;
       line = 1;
       errors = [];
@@ -67,7 +67,7 @@ export class ClaudeSessionSource extends SessionSource {
     while (guard++ < 10_000) {
       const r = readJsonlFrom(file, { offset, line, maxBytes: CHUNK });
       if (r.truncated) {
-        state = createSummaryState(id);
+        state = createSummaryState(id, opts);
         offset = 0;
         line = 1;
         errors = [];
@@ -122,7 +122,7 @@ export class ClaudeSessionSource extends SessionSource {
       const sub = entry.subagents.get(agentId) || { agentId, file };
       sub.meta = readJsonSafe(path.join(dir, `${agentId}.meta.json`), sub.meta || null);
       try {
-        const r = this.indexFile(file, `${entry.id}/${agentId}`);
+        const r = this.indexFile(file, `${entry.id}/${agentId}`, { isAgent: true });
         Object.assign(sub, { state: r.state, offset: r.offset, line: r.line, errors: r.errors, size: r.size, mtimeMs: r.mtimeMs, error: null });
       } catch (e) {
         sub.error = e.message;
@@ -242,6 +242,8 @@ export class ClaudeSessionSource extends SessionSource {
         toolUseId: s.meta?.toolUseId || null,
         spawnDepth: s.meta?.spawnDepth ?? null,
         counts: s.state ? summaryFromState(s.state).counts : null,
+        prompt: s.state?.firstPrompt || null,
+        usage: s.state?.usage || null,
         startedAt: s.state?.firstTs || null,
         endedAt: s.state?.lastTs || null,
         model: s.state ? summaryFromState(s.state).model : null,

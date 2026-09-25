@@ -14,9 +14,11 @@ interface Props {
   onIssues: () => void;
   onToggleSidebar: () => void;
   onHelp: () => void;
+  theme: 'system' | 'dark' | 'light';
+  onToggleTheme: () => void;
 }
 
-export function Header({ version, connected, watching, indexing, loaded, total, issues, onRefresh, onSettings, onIssues, onToggleSidebar, onHelp }: Props) {
+export function Header({ version, connected, watching, indexing, loaded, total, issues, onRefresh, onSettings, onIssues, onToggleSidebar, onHelp, theme, onToggleTheme }: Props) {
   return (
     <header className="header">
       <div className="brand">
@@ -53,6 +55,9 @@ export function Header({ version, connected, watching, indexing, loaded, total, 
       </button>
       <button type="button" className="btn ghost" onClick={onRefresh} title={`Refresh sessions (${MOD}+R)`}>
         <Icon name="refresh" /> Refresh
+      </button>
+      <button type="button" className="btn icon ghost" onClick={onToggleTheme} title={`Switch theme (currently ${theme})`} aria-label="Toggle light/dark theme">
+        <Icon name="theme" />
       </button>
       <button type="button" className="btn icon ghost" onClick={onSettings} title="Settings" aria-label="Settings">
         <Icon name="settings" />

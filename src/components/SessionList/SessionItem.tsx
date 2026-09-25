@@ -17,9 +17,18 @@ interface Props {
   now: number;
 }
 
+/** "platform/web-app" from a full path: last two segments, parent dimmed. */
+function shortProject(p: string) {
+  const parts = p.replace(/\/+$/, '').split('/').filter(Boolean);
+  const name = parts[parts.length - 1] || p;
+  const parent = parts.length > 1 ? parts[parts.length - 2] : '';
+  return { name, parent };
+}
+
 export const SessionItem = memo(function SessionItem({ session: s, selected, focused, editing, menuOpen, onSelect, onMenu, onRename, onEditCancel, now }: Props) {
   const [hover, setHover] = useState(false);
   const c = s.counts;
+  const proj = shortProject(s.project.raw);
   return (
     <div
       role="option"
@@ -44,35 +53,22 @@ export const SessionItem = memo(function SessionItem({ session: s, selected, foc
             {s.customName && <span className="custom-mark" aria-label="Custom name">✎</span>}
             {s.title}
           </span>
+          <span className="when" title={s.endedAt || undefined}>{relativeTime(s.endedAt, now)}</span>
         </div>
       )}
-      <div className="path" title={s.project.raw}>{s.project.path}</div>
+      <div className="path" title={s.project.raw}>
+        <Icon name="folder" size={11} />
+        {proj.parent && <span className="parent">{proj.parent}/</span>}
+        <span className="name">{proj.name}</span>
+        {s.gitBranch && s.gitBranch !== 'HEAD' && <span className="branch" title="git branch">{s.gitBranch}</span>}
+      </div>
       <div className="meta">
-        {s.model && <span title={s.model}>{modelLabel(s.model)}</span>}
-        {s.model && <span className="sep">·</span>}
+        {s.model && <span className="model" title={s.model}>{modelLabel(s.model)}</span>}
         <span>{c.messages} msg</span>
-        <span className="sep">·</span>
         <span>{c.toolCalls} tools</span>
-        {c.errors > 0 && (
-          <>
-            <span className="sep">·</span>
-            <span className="err" title={`${c.toolErrors} tool errors, ${c.apiErrors} API errors`}>{c.errors} err</span>
-          </>
-        )}
-        {s.durationMs != null && s.durationMs > 0 && (
-          <>
-            <span className="sep">·</span>
-            <span>{formatDuration(s.durationMs, { compact: true })}</span>
-          </>
-        )}
-        <span className="sep">·</span>
-        <span title={s.endedAt || undefined}>{relativeTime(s.endedAt, now)}</span>
-        {s.subagents.length > 0 && (
-          <>
-            <span className="sep">·</span>
-            <span title={`${s.subagents.length} sub-agents`}><Icon name="agent" size={11} /></span>
-          </>
-        )}
+        {s.durationMs != null && s.durationMs > 0 && <span>{formatDuration(s.durationMs, { compact: true })}</span>}
+        {c.errors > 0 && <span className="err" title={`${c.toolErrors} tool errors, ${c.apiErrors} API errors`}>{c.errors} err</span>}
+        {s.subagents.length > 0 && <span className="agents" title={`${s.subagents.length} sub-agents`}><Icon name="agent" size={11} />{s.subagents.length}</span>}
       </div>
       {!editing && (hover || menuOpen || focused) && (
         <button

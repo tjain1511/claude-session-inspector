@@ -1,5 +1,8 @@
 // Generic collapsible card used by every timeline event type.
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
+
+/** Broadcast from the toolbar: every card adopts `open` once per new `v`, then toggles freely again. */
+export type ForceOpen = { open: boolean; v: number } | null;
 import { Icon } from '@/components/common/Icon';
 import { CopyButton } from '@/components/common/CopyButton';
 
@@ -10,6 +13,7 @@ export interface CardProps {
   desc?: string;
   right?: ReactNode;
   open?: boolean; // controlled
+  force?: ForceOpen;
   defaultOpen?: boolean;
   onToggle?: (open: boolean) => void;
   copyText?: string;
@@ -19,8 +23,13 @@ export interface CardProps {
   summary?: ReactNode; // shown when collapsed
 }
 
-export function Card({ type, role, title, desc, right, open, defaultOpen = true, onToggle, copyText, onRaw, extraClass = '', children, summary }: CardProps) {
+export function Card({ type, role, title, desc, right, open, force, defaultOpen = true, onToggle, copyText, onRaw, extraClass = '', children, summary }: CardProps) {
   const [local, setLocal] = useState(defaultOpen);
+  const seen = useRef<number | null>(null);
+  if (force && force.v !== seen.current) {
+    seen.current = force.v;
+    if (local !== force.open) setLocal(force.open);
+  }
   const isOpen = open ?? local;
   const toggle = () => {
     const next = !isOpen;
@@ -43,7 +52,7 @@ export function Card({ type, role, title, desc, right, open, defaultOpen = true,
         }}
       >
         <Icon name="chevron" size={11} className="chev" />
-        <span className="role">{role}</span>
+        {role && <span className="role">{role}</span>}
         {title && <span className="name">{title}</span>}
         {desc && <span className="desc" title={desc}>{desc}</span>}
         <span className="right">

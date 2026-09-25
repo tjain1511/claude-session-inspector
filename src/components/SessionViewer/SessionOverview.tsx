@@ -25,7 +25,8 @@ export function SessionOverview({ session: s }: { session: SessionSummary }) {
       <Cell k="Tool calls" v={c.toolCalls} title={s.tools.map((t) => `${t.name} ×${t.count}`).join('\n')} />
       <Cell k="Errors" v={c.errors} cls={c.errors ? 'err' : 'ok'} title={`${c.toolErrors} tool · ${c.apiErrors} API`} />
       {c.interruptions ? <Cell k="Interrupts" v={c.interruptions} /> : null}
-      <Cell k="Tokens out" v={s.usage.output ? formatNumber(s.usage.output) : null} title={`in ${formatNumber(s.usage.input)} · cache read ${formatNumber(s.usage.cacheRead)} · cache write ${formatNumber(s.usage.cacheCreate)}`} />
+      <Cell k="Tokens in" v={s.usage.input + s.usage.cacheRead + s.usage.cacheCreate ? formatNumber(s.usage.input + s.usage.cacheRead + s.usage.cacheCreate) : null} title={`Summed over API messages\nuncached input ${formatNumber(s.usage.input)}\ncache read ${formatNumber(s.usage.cacheRead)}\ncache write ${formatNumber(s.usage.cacheCreate)}`} />
+      <Cell k="Tokens out" v={s.usage.output ? formatNumber(s.usage.output) : null} title={`output ${formatNumber(s.usage.output)}${s.usage.thinking ? `\nof which thinking ${formatNumber(s.usage.thinking)}` : ''}`} />
       {s.cost?.totalCostUSD != null ? <Cell k="Cost" v={formatCost(s.cost.totalCostUSD)} title="As recorded by Claude Code" /> : null}
       {s.subagents.length ? <Cell k="Sub-agents" v={s.subagents.length} /> : null}
     </div>

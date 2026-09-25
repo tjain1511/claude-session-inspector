@@ -2,7 +2,7 @@
 // and — for Agent calls — the sub-agent's own timeline.
 import { useState } from 'react';
 import type { SessionEvent, SubagentSummary } from '@/types/session';
-import { Card } from '@/components/Timeline/Card';
+import { Card, type ForceOpen } from '@/components/Timeline/Card';
 import { CodeBlock } from '@/components/CodeBlock/CodeBlock';
 import { CopyButton } from '@/components/common/CopyButton';
 import { Icon } from '@/components/common/Icon';
@@ -19,7 +19,7 @@ interface Props {
   sessionId: string;
   onRaw: (e: SessionEvent) => void;
   query?: string;
-  forceOpen?: boolean | null;
+  forceOpen?: ForceOpen;
   outputLines: number;
   subagent?: SubagentSummary;
   live?: boolean;
@@ -34,10 +34,10 @@ export function ToolCallCard({ event: e, result, sessionId, onRaw, query, forceO
   return (
     <Card
       type="tool_call"
-      role="Tool"
+      role=""
       title={e.tool}
       desc={desc}
-      open={forceOpen ?? undefined}
+      force={forceOpen}
       extraClass={`status-${status}`}
       right={
         <>

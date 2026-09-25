@@ -52,6 +52,13 @@ export function SettingsPanel({ status, onClose, onChooseDir }: Props) {
           <button type="button" role="radio" aria-checked={s.toolOutput === 'truncated'} className={s.toolOutput === 'truncated' ? 'on' : ''} onClick={() => update({ toolOutput: 'truncated' })}>Truncated</button>
         </div>
 
+        <div className="lbl">Theme<small>System follows your OS preference.</small></div>
+        <div className="radio-row" role="radiogroup" aria-label="Theme">
+          {(['system', 'dark', 'light'] as const).map((t) => (
+            <button key={t} type="button" role="radio" aria-checked={s.theme === t} className={s.theme === t ? 'on' : ''} onClick={() => update({ theme: t })}>{t[0]!.toUpperCase() + t.slice(1)}</button>
+          ))}
+        </div>
+
         <div className="lbl">Timestamp<small>Gutter shows wall-clock time or time since session start.</small></div>
         <div className="radio-row" role="radiogroup" aria-label="Timestamp format">
           <button type="button" role="radio" aria-checked={s.timestamps === 'local'} className={s.timestamps === 'local' ? 'on' : ''} onClick={() => update({ timestamps: 'local' })}>Local time</button>
