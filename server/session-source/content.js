@@ -30,6 +30,7 @@ export function classifyUserRecord(rec) {
   const originKind = rec.origin?.kind;
   if (originKind === 'task-notification') return 'task-notification';
   if (originKind === 'peer' || originKind === 'coordinator') return 'agent-report';
+  if (Array.isArray(c) && c.length && c.every((b) => b && b.type === 'tool_result')) return 'tool_result';
   const text = typeof c === 'string' ? c : Array.isArray(c) ? c.filter((b) => b?.type === 'text').map((b) => b.text || '').join('\n') : '';
   const t = text.trimStart();
   if (t.startsWith('[Request interrupted by user')) return 'interrupted';

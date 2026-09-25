@@ -10,7 +10,7 @@
     "dev": "node scripts/build.mjs --watch & node server/index.js --dev; wait",
     "start": "node server/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --test server/**/*.test.js"
+    "test": "node --test server/test/*.test.js"
   },
   "engines": { "node": ">=20" },
   "dependencies": {},
