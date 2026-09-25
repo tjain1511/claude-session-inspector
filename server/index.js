@@ -283,7 +283,12 @@ async function handleApi(req, res, url) {
       const line = Number(q.get('line'));
       const block = Number(q.get('block'));
       const raw = src.readRaw(id, fileKey, { line, offset: Number(q.get('offset')), length: Number(q.get('length')) });
-      const b = raw?.message?.content?.[block];
+      let b = raw?.message?.content?.[block];
+      // Images returned by tools live inside a tool_result block: content[block].content[sub]
+      if (b && b.type === 'tool_result' && q.has('sub')) {
+        const subIdx = Number(q.get('sub'));
+        b = Array.isArray(b.content) && Number.isInteger(subIdx) ? b.content[subIdx] : undefined;
+      }
       if (!b || b.type !== 'image' || b.source?.type !== 'base64' || !/^image\/(png|jpeg|gif|webp)$/.test(b.source.media_type || '')) {
         return send(res, 404, { error: 'image not found' });
       }

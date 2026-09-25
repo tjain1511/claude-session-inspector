@@ -27,7 +27,7 @@ interface Row {
   tools?: number;
 }
 
-interface Turn {
+export interface Turn {
   idx: number;
   prompt: string;
   promptId: string;
@@ -40,6 +40,9 @@ interface Turn {
   maxParallel: number;
   modelCalls: number;
   toolCalls: number;
+  errors: number;
+  tokensOut: number;
+  agents: SubagentSummary[];
 }
 
 export function buildTurns(events: SessionEvent[], subagents: SubagentSummary[]): Turn[] {
@@ -72,13 +75,14 @@ export function buildTurns(events: SessionEvent[], subagents: SubagentSummary[])
     const t = eventTs(e);
     if (e.type === 'user' && e.kind === 'human') {
       finish();
-      cur = { idx: turns.length + 1, prompt: firstLine(e.content || ''), promptId: e.id, start: t ?? 0, end: t ?? 0, rows: [], modelMs: 0, toolMs: 0, batches: 0, maxParallel: 0, modelCalls: 0, toolCalls: 0 };
+      cur = { idx: turns.length + 1, prompt: firstLine(e.content || ''), promptId: e.id, start: t ?? 0, end: t ?? 0, rows: [], modelMs: 0, toolMs: 0, batches: 0, maxParallel: 0, modelCalls: 0, toolCalls: 0, errors: 0, tokensOut: 0, agents: [] };
       lastTs = t;
       trigger = t;
       continue;
     }
     if (!cur || t == null) continue;
     if (t > cur.end) cur.end = t;
+    if (e.type === 'error' || (e.type === 'tool_result' && e.isError)) cur.errors++;
     if (lastTs != null && t > lastTs) {
       if (e.type === 'assistant' || e.type === 'thinking' || e.type === 'tool_call' || e.type === 'error') cur.modelMs += t - lastTs;
       else if (e.type === 'tool_result') cur.toolMs += t - lastTs;
@@ -105,6 +109,7 @@ export function buildTurns(events: SessionEvent[], subagents: SubagentSummary[])
           tools: 0,
         };
         cur.rows.push(modelRow);
+        cur.tokensOut += e.usage?.output ?? 0;
       }
       modelRow.end = Math.max(modelRow.end ?? t, t);
       modelRow.blocks = (modelRow.blocks ?? 0) + 1;
@@ -117,6 +122,7 @@ export function buildTurns(events: SessionEvent[], subagents: SubagentSummary[])
       const batch = lastTool && lastTool.e.messageId === e.messageId ? lastTool.batch : (lastTool?.batch ?? -1) + 1;
       const res = results.get(e.toolUseId);
       const agent = subByTool.get(e.toolUseId);
+      if (agent) cur.agents.push(agent);
       let end = res ? eventTs(res) : null;
       if (agent?.endedAt) {
         const ae = Date.parse(agent.endedAt);

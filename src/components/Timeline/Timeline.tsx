@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react';
 import type { SessionEvent, SubagentSummary } from '@/types/session';
 import { useSettings } from '@/features/settings/settings';
-import { formatClock, formatDuration, formatOffset } from '@/utils/format';
+import { formatClock, formatDuration, formatOffset, modelLabel } from '@/utils/format';
 import { eventTs } from '@/utils/events';
 import { Icon } from '@/components/common/Icon';
 import { UserMessage, AssistantMessage, ThinkingBlock, ErrorCard, SystemCard, UnknownCard, AgentReportCard } from '@/components/Message/Messages';
@@ -14,7 +14,8 @@ import type { ForceOpen } from './Card';
 export type Item =
   | { kind: 'event'; e: SessionEvent; idx: number }
   | { kind: 'meta'; events: SessionEvent[]; idx: number }
-  | { kind: 'turn'; e: SessionEvent; idx: number };
+  | { kind: 'turn'; e: SessionEvent; idx: number }
+  | { kind: 'model'; e: SessionEvent; from: string; to: string; idx: number };
 
 export interface TimelineHandle {
   scrollToEvent: (id: string) => void;
@@ -46,6 +47,7 @@ export function buildItems(events: SessionEvent[], showMeta: boolean, showThinki
   for (const e of events) if (e.type === 'tool_call' && e.toolUseId) callIds.add(e.toolUseId);
   const items: Item[] = [];
   let metaBuf: SessionEvent[] = [];
+  let lastModel: string | null = null;
   const flush = () => {
     if (metaBuf.length) {
       if (showMeta) items.push({ kind: 'meta', events: metaBuf, idx: items.length });
@@ -67,6 +69,13 @@ export function buildItems(events: SessionEvent[], showMeta: boolean, showThinki
     if (e.type === 'metadata' || e.type === 'attachment') {
       metaBuf.push(e);
       continue;
+    }
+    if ((e.type === 'assistant' || e.type === 'thinking' || e.type === 'tool_call') && e.model) {
+      if (lastModel && e.model !== lastModel) {
+        flush();
+        items.push({ kind: 'model', e, from: lastModel, to: e.model, idx: items.length });
+      }
+      lastModel = e.model;
     }
     if (e.type === 'thinking' && !showThinking) continue;
     flush();
@@ -173,6 +182,16 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({ ev
               <div />
               <div className="body">
                 <Icon name="clock" size={11} /> turn took {formatDuration(it.e.durationMs)}{it.e.messageCount != null ? ` · ${it.e.messageCount} messages in context` : ''}
+              </div>
+            </div>
+          );
+        }
+        if (it.kind === 'model') {
+          return (
+            <div className="turn-sep model-change" key={'mc' + it.e.id} data-event-id={it.e.id}>
+              <div />
+              <div className="body">
+                <span className="chip warn" title={`${it.from} → ${it.to}`}>model changed</span> {modelLabel(it.from)} → <strong>{modelLabel(it.to)}</strong>
               </div>
             </div>
           );

@@ -12,6 +12,7 @@ const ROWS: [string, string][] = [
   ['J / K', 'Next / previous event in the timeline'],
   ['E', 'Expand / collapse all tool cards'],
   ['I', 'Open metadata drawer'],
+  ['O', 'Toggle the turn outline'],
   ['Esc', 'Close inspector, drawer or search'],
   ['?', 'This help'],
 ];

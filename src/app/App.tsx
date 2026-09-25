@@ -119,6 +119,8 @@ function Shell() {
           const next = e.key === 'j' ? Math.min(cards.length - 1, idx + (cards[idx] && Math.abs(cards[idx]!.getBoundingClientRect().top - top) < 2 ? 1 : 0)) : Math.max(0, idx - 1);
           cards[next]?.scrollIntoView({ block: 'start' });
           e.preventDefault();
+        } else if (e.key.toLowerCase() === 'o' && selectedId) {
+          update({ showOutline: !settings.showOutline });
         } else if (e.key.toLowerCase() === 'e' && selectedId) {
           (document.querySelector('.toolbar .btn[title^="Expand"]') as HTMLButtonElement | null)?.click();
         }
@@ -126,7 +128,7 @@ function Shell() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [sessions, detail, selectedId, rawEvent, metadataId, findOpen, showSettings, showHelp, showIssues, settings.sidebarCollapsed, update]);
+  }, [sessions, detail, selectedId, rawEvent, metadataId, findOpen, showSettings, showHelp, showIssues, settings.sidebarCollapsed, settings.showOutline, update]);
 
   // Sidebar resize
   const onResizeStart = (e: React.MouseEvent) => {

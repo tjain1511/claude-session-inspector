@@ -991,6 +991,7 @@ kbd {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  min-width: 0;
   scroll-padding-top: 40px;
 }
 .timeline {
@@ -2597,5 +2598,319 @@ button.link:hover {
   }
   .ctx-nav-note {
     display: none;
+  }
+}
+
+/* ---------- images + lightbox ---------- */
+.img-thumb {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: zoom-in;
+  font: inherit;
+  color: inherit;
+}
+.img-thumb:disabled {
+  cursor: default;
+}
+.img-thumb img {
+  display: block;
+  max-width: 420px;
+  max-height: 320px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--code-bg);
+}
+.img-thumb:hover img {
+  border-color: var(--tool);
+}
+.img-cap {
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+.tool-images {
+  padding: 8px 0 0;
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  padding: 24px;
+}
+.lightbox img {
+  max-width: 100%;
+  max-height: calc(100% - 32px);
+  border-radius: 4px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  cursor: default;
+  background: #fff;
+}
+.lightbox-bar {
+  position: absolute;
+  bottom: 10px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #ddd;
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+/* ---------- cost table + overview extras ---------- */
+.cost-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.cost-table th,
+.cost-table td {
+  text-align: right;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.cost-table th:first-child,
+.cost-table td:first-child {
+  text-align: left;
+}
+.cost-table th {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.cost-table tr.primary td:first-child {
+  color: var(--accent);
+  font-weight: 600;
+}
+.cost-table tfoot td {
+  font-weight: 600;
+  border-bottom: 0;
+  border-top: 1px solid var(--border-strong);
+}
+.overview .cell .v.multi small {
+  color: var(--warning);
+  font-weight: 600;
+}
+.cell-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted var(--text-3);
+  text-underline-offset: 3px;
+}
+.cell-btn:hover {
+  color: var(--tool);
+}
+.agent-chip .chip.model {
+  padding: 0 5px;
+  height: 16px;
+  font-size: 10px;
+}
+.turn-sep.model-change .body {
+  color: var(--text-2);
+}
+
+/* ---------- outline rail ---------- */
+.viewer-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.btn.ghost.active {
+  color: var(--tool);
+  border-color: color-mix(in srgb, var(--tool) 40%, var(--border));
+}
+.outline {
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--sidebar);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.outline-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+}
+.outline-head > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.outline-head .help-text {
+  flex: 1;
+  font-weight: 400;
+}
+.outline-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.outline-agents .chip .model {
+  color: var(--warning);
+  margin-left: 4px;
+}
+.outline-list {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 6px 0 20px;
+}
+.outline-turn {
+  padding: 6px 12px 8px;
+  border-left: 2px solid transparent;
+}
+.outline-turn.has-error {
+  border-left-color: var(--error);
+}
+.outline-turn + .outline-turn {
+  border-top: 1px solid var(--border);
+}
+.outline-turn-head {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 2px 0;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.outline-turn-head:hover .prompt {
+  color: var(--tool);
+}
+.outline-turn-head .no {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  width: 22px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.outline-turn-head .prompt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outline-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 2px 30px;
+}
+.outline-bar .track {
+  height: 5px;
+  background: var(--elevated-2);
+  border-radius: 3px;
+  display: flex;
+  overflow: hidden;
+  min-width: 4px;
+}
+.outline-bar .track i {
+  display: block;
+  height: 100%;
+}
+.outline-bar .track i.model {
+  background: var(--accent);
+}
+.outline-bar .track i.tool {
+  background: var(--tool);
+}
+.outline-bar .dur {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.outline-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  margin-left: 30px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+.outline-stats .err,
+.outline-agent .err {
+  color: var(--error);
+}
+.outline-agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 5px 0 0 30px;
+}
+.outline-agent {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--elevated);
+  color: var(--text-2);
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.outline-agent:hover {
+  border-color: var(--thinking);
+  color: var(--text);
+}
+.outline-agent .icon-svg {
+  color: var(--thinking);
+  flex-shrink: 0;
+}
+.outline-agent .type {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.outline-agent .desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outline-agent .chip.model {
+  height: 15px;
+  padding: 0 4px;
+  font-size: 9.5px;
+}
+@media (max-width: 1100px) {
+  .outline {
+    width: 240px;
   }
 }

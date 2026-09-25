@@ -45,8 +45,8 @@ export const api = {
   readSubagent: (id: string, agentId: string) => request<SubagentRead>(`/api/sessions/${id}/subagents/${agentId}`),
   readRaw: (id: string, ref: { file: string; line: number; offset: number; length: number }) =>
     request<{ raw: unknown }>(`/api/sessions/${id}/raw?file=${encodeURIComponent(ref.file)}&line=${ref.line}&offset=${ref.offset}&length=${ref.length}`),
-  imageUrl: (id: string, ref: { file: string; line: number; offset: number; length: number }, block: number) =>
-    `/api/sessions/${id}/image?file=${encodeURIComponent(ref.file)}&line=${ref.line}&offset=${ref.offset}&length=${ref.length}&block=${block}`,
+  imageUrl: (id: string, ref: { file: string; line: number; offset: number; length: number }, block: number, sub?: number) =>
+    `/api/sessions/${id}/image?file=${encodeURIComponent(ref.file)}&line=${ref.line}&offset=${ref.offset}&length=${ref.length}&block=${block}${sub != null ? `&sub=${sub}` : ''}`,
   search: (q: string) => request<{ query: string; ids: string[] | null }>(`/api/search?q=${encodeURIComponent(q)}`),
   rename: (id: string, name: string) => request<{ ok: true; customName: string; summary: SessionSummary }>(`/api/sessions/${id}/name`, { method: 'PUT', body: JSON.stringify({ name }) }),
   clearName: (id: string) => request<{ ok: true; summary: SessionSummary }>(`/api/sessions/${id}/name`, { method: 'DELETE' }),

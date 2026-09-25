@@ -149,6 +149,7 @@ export interface SessionSummary {
     totalLinesRemoved?: number;
     startTime?: number;
     modelUsage?: Record<string, Record<string, number>>;
+    hasUnknownModelCost?: boolean;
   } | null;
   continuedIn: string | null;
   prLinks: { url: string; number?: number; repository?: string }[];

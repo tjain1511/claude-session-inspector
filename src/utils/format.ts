@@ -91,10 +91,11 @@ export function formatCost(usd: number | null | undefined): string {
 export function modelLabel(model: string | null | undefined): string {
   if (!model) return '';
   return model
+    .replace(/\[(\w+)\]$/, ' ($1)')
     .replace(/^claude-/, '')
     .replace(/-\d{8}$/, '')
-    .replace(/-(\d)-(\d)$/, ' $1.$2')
-    .replace(/-(\d)$/, ' $1')
+    .replace(/-(\d)-(\d)( .*)?$/, ' $1.$2$3')
+    .replace(/-(\d)( .*)?$/, ' $1$2')
     .replace(/^(\w)/, (c) => c.toUpperCase());
 }
 

@@ -10,6 +10,7 @@ export interface Settings {
   showThinking: boolean;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
+  showOutline: boolean; // turn-by-turn outline rail in the session viewer
   theme: 'system' | 'dark' | 'light';
 }
 
@@ -23,6 +24,7 @@ const DEFAULTS: Settings = {
   showThinking: true,
   sidebarWidth: 320,
   sidebarCollapsed: false,
+  showOutline: false,
   theme: 'system',
 };
 

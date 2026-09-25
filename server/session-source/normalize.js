@@ -88,7 +88,8 @@ export function normalizeRecord(rec, fileKey = 'main', opts = {}) {
         blocks.forEach((b, i) => {
           if (!b || typeof b !== 'object' || b.type !== 'tool_result') return;
           const t = text(toolResultText(b.content));
-          const images = Array.isArray(b.content) ? b.content.filter((x) => x?.type === 'image').length : 0;
+          const imageBlocks = Array.isArray(b.content) ? b.content.map((x, j) => (x?.type === 'image' ? j : -1)).filter((j) => j >= 0) : [];
+          const images = imageBlocks.length;
           events.push({
             ...base(),
             id: `${base().id}#${i}`,
@@ -101,6 +102,7 @@ export function normalizeRecord(rec, fileKey = 'main', opts = {}) {
             status: b.is_error ? 'error' : 'success',
             isError: !!b.is_error,
             images,
+            imageBlocks,
             interrupted: !!o.toolUseResult?.interrupted,
             denied: o.toolDenialKind || undefined,
             structured: opts.includeStructured === false ? undefined : trimToolUseResult(o.toolUseResult),

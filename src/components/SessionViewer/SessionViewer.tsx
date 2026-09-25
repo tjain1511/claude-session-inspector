@@ -11,9 +11,11 @@ import { Timeline, buildItems, type TimelineHandle } from '@/components/Timeline
 import { ToolGantt } from '@/components/Timeline/ToolGantt';
 import type { ForceOpen } from '@/components/Timeline/Card';
 import { SubagentStrip } from './SubagentStrip';
+import { SessionOutline } from './SessionOutline';
 import { ContextView, ContextCard } from '@/components/Context/ContextView';
 import { ToolDocsContext, type ContextTab } from '@/components/Context/ToolDocs';
 import { useSessionContext } from '@/features/sessions/useSessionContext';
+import { PrimaryModelContext } from '@/features/sessions/primaryModel';
 import { FindBar } from '@/components/Search/FindBar';
 import { RawInspector } from '@/components/Metadata/RawInspector';
 import { eventSearchText } from '@/utils/events';
@@ -156,6 +158,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
 
   return (
     <ToolDocsContext.Provider value={toolDocs}>
+    <PrimaryModelContext.Provider value={s.model}>
     <div className="viewer">
       <div className="viewer-header">
         <div className="viewer-title-row">
@@ -190,8 +193,8 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
           {s.version && (<><span className="sep">·</span><span className="help-text">Claude Code v{s.version}</span></>)}
           {s.continuedIn && (<><span className="sep">·</span><span className="chip">continued in another session</span></>)}
         </div>
-        <SessionOverview session={s} />
-        {s.subagents.length > 0 && <SubagentStrip agents={s.subagents} onJump={(toolUseId) => { const id = toolUseId ? callByToolUse.get(toolUseId) : undefined; if (id) jumpFromGantt(id); }} />}
+        <SessionOverview session={s} onShowMetadata={onShowMetadata} />
+        {s.subagents.length > 0 && <SubagentStrip agents={s.subagents} primaryModel={s.model} onJump={(toolUseId) => { const id = toolUseId ? callByToolUse.get(toolUseId) : undefined; if (id) jumpFromGantt(id); }} />}
         {showBar && events.length > 1 && <TimelineBar events={events} onJump={jumpFromGantt} />}
       </div>
       <div className="toolbar">
@@ -215,6 +218,9 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
         <button type="button" className="btn ghost sm" onClick={() => setForceOpen((f) => ({ open: !(f?.open ?? true), v: (f?.v ?? 0) + 1 }))} title="Expand / collapse all cards (E)">
           <Icon name={forceOpen && !forceOpen.open ? 'expand' : 'collapse'} size={12} /> {forceOpen && !forceOpen.open ? 'Expand all' : 'Collapse all'}
         </button>
+        <button type="button" className={`btn ghost sm ${settings.showOutline ? 'active' : ''}`} onClick={() => update({ showOutline: !settings.showOutline })} aria-pressed={settings.showOutline} title="Turn-by-turn outline with sub-agents (O)">
+          <Icon name="list" size={12} /> Outline
+        </button>
         <button type="button" className="btn ghost sm" onClick={() => { timeline.current?.mountAll(); requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })); }} title="Jump to the latest event">
           <Icon name="arrowDown" size={12} /> End
         </button>
@@ -230,6 +236,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
           onClose={() => { setFindOpen(false); setFind(''); }}
         />
       )}
+      <div className="viewer-body">
       <div className="timeline-scroll" ref={scrollRef} onScroll={onScroll} tabIndex={-1}>
         {detail.error ? (
           <div className="state-panel">
@@ -266,8 +273,13 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
           </>
         )}
       </div>
+      {settings.showOutline && !detail.loading && (
+        <SessionOutline session={s} events={events} onJump={jumpFromGantt} onJumpAgent={(toolUseId) => { const id = toolUseId ? callByToolUse.get(toolUseId) : undefined; if (id) jumpFromGantt(id); }} onClose={() => update({ showOutline: false })} />
+      )}
+      </div>
       {rawEvent && <RawInspector sessionId={s.id} event={rawEvent} onClose={() => setRawEvent(null)} />}
     </div>
+    </PrimaryModelContext.Provider>
     </ToolDocsContext.Provider>
   );
 }

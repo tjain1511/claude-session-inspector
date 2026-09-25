@@ -5,6 +5,7 @@ import { CopyButton } from '@/components/common/CopyButton';
 import { formatBytes, formatCost, formatDateTime, formatDuration, formatNumber, modelLabel } from '@/utils/format';
 import { prettyJson } from '@/utils/highlight';
 import { CodeBlock } from '@/components/CodeBlock/CodeBlock';
+import { CostTable } from '@/components/SessionViewer/CostTable';
 
 function Row({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) {
   if (v === null || v === undefined || v === '') return null;
@@ -72,18 +73,20 @@ export function MetadataDrawer({ session: s, onClose, onOpenSession }: { session
         {s.cost && <Row k="cost (from log)" v={formatCost(s.cost.totalCostUSD)} />}
         {s.cost && (s.cost.totalLinesAdded || s.cost.totalLinesRemoved) ? <Row k="lines changed" v={`+${s.cost.totalLinesAdded} / -${s.cost.totalLinesRemoved}`} /> : null}
       </div>
+      <h4>Per-model usage and cost (from Claude Code's cost-state)</h4>
+      <CostTable session={s} />
       {s.cost?.modelUsage && (
-        <>
-          <h4>Per-model usage (from cost-state)</h4>
+        <details className="ctx-details" style={{ marginTop: 6 }}>
+          <summary>Raw modelUsage</summary>
           <CodeBlock code={prettyJson(s.cost.modelUsage)} lang="json" compact initialLines={60} />
-        </>
+        </details>
       )}
       {(s.subagents.length > 0 || s.inFileAgentIds.length > 0) && (
         <>
           <h4>Sub-agents</h4>
           <div className="kv">
             {s.subagents.map((a) => (
-              <Row key={a.agentId} k={a.agentType || 'agent'} v={<>{a.description || a.agentId} <span className="help-text mono">{a.agentId}{a.counts ? ` · ${a.counts.toolCalls} tools` : ''} · {formatBytes(a.sizeBytes)}</span></>} />
+              <Row key={a.agentId} k={a.agentType || 'agent'} v={<>{a.description || a.agentId} {a.model && a.model !== s.model && <span className="chip warn">{modelLabel(a.model)}</span>} <span className="help-text mono">{a.agentId}{a.model ? ` · ${a.model}` : ''}{a.counts ? ` · ${a.counts.toolCalls} tools` : ''} · {formatBytes(a.sizeBytes)}</span></>} />
             ))}
             {s.inFileAgentIds.length > 0 && <Row k="in-transcript agents" v={s.inFileAgentIds.join(', ')} mono />}
           </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SessionEvent } from '@/types/session';
 import { CodeBlock } from '@/components/CodeBlock/CodeBlock';
 import { api } from '@/services/api';
+import { LazyImage } from '@/components/common/LazyImage';
 import { fullTextFromRaw } from '@/utils/events';
 import { langFor, looksLikeJson, type Lang } from '@/utils/highlight';
 
@@ -26,8 +27,21 @@ export function ToolResultBody({ result, tool, sessionId, initialLines, query }:
     const r = await api.readRaw(sessionId, result.ref);
     setFull(fullTextFromRaw(result, r.raw) ?? '');
   };
-  if (!text.trim()) return <div className="help-text">(empty output)</div>;
-  return <CodeBlock code={text} lang={langForResult(tool, text)} compact initialLines={initialLines} truncated={truncated} fullLength={result.fullLength} onLoadFull={() => void load()} highlightQuery={query} wrapDefault />;
+  const imgs = result.imageBlocks ?? [];
+  const images = imgs.length > 0 && result.block != null && (
+    <div className="images tool-images">
+      {imgs.map((sub, i) => (
+        <LazyImage key={sub} url={api.imageUrl(sessionId, result.ref, result.block!, sub)} alt={`Image ${i + 1} returned by ${tool || 'the tool'}`} caption={`${tool || 'tool'} image ${i + 1} of ${imgs.length}`} />
+      ))}
+    </div>
+  );
+  if (!text.trim()) return images || <div className="help-text">(empty output)</div>;
+  return (
+    <>
+      <CodeBlock code={text} lang={langForResult(tool, text)} compact initialLines={initialLines} truncated={truncated} fullLength={result.fullLength} onLoadFull={() => void load()} highlightQuery={query} wrapDefault />
+      {images}
+    </>
+  );
 }
 
 /** Standalone tool result whose call was not found in the loaded events. */

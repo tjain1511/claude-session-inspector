@@ -97,6 +97,13 @@ was recorded and say what was not.
 - Large sessions: windowed rendering, `content-visibility`, truncated outputs with "show more",
   server-side truncation with on-demand full load
 - Rename sessions inline (header or list), reset to the generated title, duplicates allowed
+- Images: screenshots returned by tools (e.g. browser automation) and images pasted by the user render
+  inline, lazily, with a full-size lightbox
+- Model attribution: "model changed" markers in the flow, a highlighted chip on any message or sub-agent
+  that ran on a different model than the session's main one, and a per-model token/cost table (from
+  Claude Code's `cost-state`, including cache read/write tokens) in the overview and metadata drawer
+- Outline rail (O): one row per user turn with duration split (model/tool), calls, tokens, errors and
+  the sub-agents it spawned, so long multi-agent runs and generator/critic loops are navigable
 - Collapsible session list (⌘B or the header button)
 - Keyboard: ⌘K search, ⌘B toggle list, ⌘R refresh, ⌘F find in session, ↑/↓/Enter/F2 in the list, J/K/E/I in the
   timeline, Esc closes things, `?` shows the full list

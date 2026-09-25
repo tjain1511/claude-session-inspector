@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SessionEvent } from '@/types/session';
 import { Card, type ForceOpen } from '@/components/Timeline/Card';
 import { Markdown } from '@/utils/markdown';
 import { markMatches } from '@/components/CodeBlock/CodeBlock';
 import { CodeBlock } from '@/components/CodeBlock/CodeBlock';
 import { api } from '@/services/api';
+import { LazyImage } from '@/components/common/LazyImage';
 import { Icon } from '@/components/common/Icon';
 import { formatNumber, modelLabel } from '@/utils/format';
 import { firstLine, fullTextFromRaw } from '@/utils/events';
+import { usePrimaryModel } from '@/features/sessions/primaryModel';
 
 export interface EventCardProps {
   event: SessionEvent;
@@ -70,7 +72,7 @@ export function UserMessage({ event: e, sessionId, onRaw, query, forceOpen }: Ev
       {e.imageBlocks && e.imageBlocks.length > 0 && (
         <div className="images">
           {e.imageBlocks.map((b) => (
-            <LazyImage key={b} url={api.imageUrl(sessionId, e.ref, b)} />
+            <LazyImage key={b} url={api.imageUrl(sessionId, e.ref, b)} alt="Image attached by the user" caption={`image ${e.imageBlocks!.indexOf(b) + 1} of ${e.imageBlocks!.length}`} />
           ))}
         </div>
       )}
@@ -78,38 +80,12 @@ export function UserMessage({ event: e, sessionId, onRaw, query, forceOpen }: Ev
   );
 }
 
-function LazyImage({ url }: { url: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [src, setSrc] = useState<string | null>(null);
-  const [err, setErr] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let cancelled = false;
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((x) => x.isIntersecting)) {
-        io.disconnect();
-        api.fetchImage(url).then((u) => !cancelled && setSrc(u)).catch(() => !cancelled && setErr(true));
-      }
-    });
-    io.observe(el);
-    return () => {
-      cancelled = true;
-      io.disconnect();
-      if (src) URL.revokeObjectURL(src);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
-  return (
-    <div ref={ref}>
-      {src ? <img src={src} alt="Image attached to the message" /> : <div className="img-ph">{err ? 'image unavailable' : 'loading image…'}</div>}
-    </div>
-  );
-}
-
 export function AssistantMessage({ event: e, sessionId, onRaw, query, forceOpen }: EventCardProps) {
   const { text, truncated, load } = useFullText(e, sessionId);
   const u = e.usage;
+  const primary = usePrimaryModel();
+  const otherModel = !!(e.model && primary && e.model !== primary);
+  const cached = u ? (u.cacheRead ?? 0) + (u.cacheCreate ?? 0) : 0;
   return (
     <Card
       type="assistant"
@@ -117,8 +93,12 @@ export function AssistantMessage({ event: e, sessionId, onRaw, query, forceOpen 
       force={forceOpen}
       right={
         <>
-          {e.model && <span title={e.model}>{modelLabel(e.model)}</span>}
-          {u && u.output != null && <span title={`Tokens for this API message\nuncached input ${formatNumber(u.input)}\ncache read ${formatNumber(u.cacheRead)}\ncache write ${formatNumber(u.cacheCreate)}\noutput ${formatNumber(u.output)}${u.thinking ? `\nof which thinking ${formatNumber(u.thinking)}` : ''}`}>{formatNumber((u.input ?? 0) + (u.cacheRead ?? 0) + (u.cacheCreate ?? 0))} in · {formatNumber(u.output)} out</span>}
+          {e.model && (otherModel ? <span className="chip warn" title={`${e.model}\nDifferent from the session's main model (${primary})`}>{modelLabel(e.model)}</span> : <span title={e.model}>{modelLabel(e.model)}</span>)}
+          {u && u.output != null && (
+            <span title={`Tokens for this API message\nuncached input ${formatNumber(u.input)}\ncache read ${formatNumber(u.cacheRead)}\ncache write ${formatNumber(u.cacheCreate)}\noutput ${formatNumber(u.output)}${u.thinking ? `\nof which thinking ${formatNumber(u.thinking)}` : ''}`}>
+              {formatNumber((u.input ?? 0) + cached)} in{cached > 0 && <span className="help-text"> ({formatNumber(cached)} cached)</span>} · {formatNumber(u.output)} out
+            </span>
+          )}
           {e.stopReason && e.stopReason !== 'tool_use' && e.stopReason !== 'end_turn' && <span className="chip warn">{e.stopReason}</span>}
         </>
       }

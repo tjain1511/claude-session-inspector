@@ -170,6 +170,7 @@ export function reduceRecord(state, rec) {
         totalLinesRemoved: rec.totalLinesRemoved,
         startTime: rec.startTime,
         modelUsage: rec.modelUsage,
+        hasUnknownModelCost: rec.hasUnknownModelCost === true,
       };
       break;
     case 'continued-in':
