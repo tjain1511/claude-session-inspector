@@ -43,7 +43,7 @@ export function Modal({ title, subtitle, onClose, children, variant = 'modal', w
     };
   }, [onClose]);
   const body = (
-    <div ref={ref} className={variant === 'drawer' ? `drawer ${wide ? 'wide' : ''}` : 'modal'} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} onClick={(e) => e.stopPropagation()}>
+    <div ref={ref} className={variant === 'drawer' ? `drawer ${wide ? 'wide' : ''}` : 'modal'} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <div className="drawer-head">
         <span>{title}</span>
         {subtitle && <span className="sub">{subtitle}</span>}

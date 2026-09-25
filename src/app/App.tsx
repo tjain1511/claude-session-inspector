@@ -80,9 +80,6 @@ function Shell() {
       } else if (mod && e.key.toLowerCase() === 'f' && selectedId) {
         e.preventDefault();
         setFindOpen(true);
-      } else if (mod && e.key === ',') {
-        e.preventDefault();
-        setShowSettings(true);
       } else if (e.key === 'Escape') {
         if (rawEvent) setRawEvent(null);
         else if (metadataId) setMetadataId(null);

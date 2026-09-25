@@ -48,6 +48,14 @@ export function formatDateTime(iso: string | null | undefined): string {
   return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+export function formatShortDateTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: sameYear ? undefined : '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);

@@ -54,7 +54,7 @@ export function Header({ version, connected, watching, indexing, loaded, total, 
       <button type="button" className="btn ghost" onClick={onRefresh} title={`Refresh sessions (${MOD}+R)`}>
         <Icon name="refresh" /> Refresh
       </button>
-      <button type="button" className="btn icon ghost" onClick={onSettings} title={`Settings (${MOD}+,)`} aria-label="Settings">
+      <button type="button" className="btn icon ghost" onClick={onSettings} title="Settings" aria-label="Settings">
         <Icon name="settings" />
       </button>
     </header>

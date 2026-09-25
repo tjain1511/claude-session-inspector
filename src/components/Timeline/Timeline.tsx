@@ -77,11 +77,12 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({ ev
   const sentinel = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const startTs = useMemo(() => {
+    let min: number | null = null;
     for (const e of events) {
       const t = eventTs(e);
-      if (t != null) return t;
+      if (t != null && (min == null || t < min)) min = t;
     }
-    return null;
+    return min;
   }, [events]);
   const subByToolUse = useMemo(() => new Map(subagents.filter((s) => s.toolUseId).map((s) => [s.toolUseId as string, s])), [subagents]);
 

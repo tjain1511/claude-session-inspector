@@ -5,7 +5,6 @@ const ROWS: [string, string][] = [
   [`${MOD} K`, 'Search sessions'],
   [`${MOD} R`, 'Refresh sessions'],
   [`${MOD} F`, 'Search within the open session'],
-  [`${MOD} ,`, 'Settings'],
   ['↑ / ↓', 'Navigate sessions (when the list is focused)'],
   ['Enter', 'Open focused session'],
   ['F2', 'Rename focused session'],

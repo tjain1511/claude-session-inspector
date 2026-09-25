@@ -1,5 +1,5 @@
 import type { SessionSummary } from '@/types/session';
-import { formatCost, formatDateTime, formatDuration, formatNumber, modelLabel } from '@/utils/format';
+import { formatCost, formatDateTime, formatDuration, formatNumber, formatShortDateTime, modelLabel } from '@/utils/format';
 
 function Cell({ k, v, cls, title }: { k: string; v: React.ReactNode; cls?: string; title?: string }) {
   if (v === null || v === undefined || v === '') return null;
@@ -18,7 +18,7 @@ export function SessionOverview({ session: s }: { session: SessionSummary }) {
     <div className="overview">
       <Cell k="Project" v={s.project.name} title={s.project.raw} />
       <Cell k="Model" v={s.model ? modelLabel(s.model) : null} title={s.models.map((m) => `${m.name} ×${m.count}`).join('\n')} />
-      <Cell k="Started" v={formatDateTime(s.startedAt)} />
+      <Cell k="Started" v={formatShortDateTime(s.startedAt)} title={formatDateTime(s.startedAt)} />
       <Cell k="Span" v={formatDuration(s.durationMs)} title="First to last event" />
       {s.cost?.totalDuration ? <Cell k="Active" v={formatDuration(s.cost.totalDuration)} title="Total wall-clock time Claude Code was active (from the log's cost-state)" /> : null}
       <Cell k="Messages" v={<>{c.messages} <small>{c.userMessages}u / {c.assistantMessages}c</small></>} title={`${c.userMessages} user · ${c.assistantMessages} Claude`} />
