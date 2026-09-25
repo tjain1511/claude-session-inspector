@@ -1,0 +1,25 @@
+{
+  "name": "claude-session-viewer",
+  "version": "0.1.0",
+  "description": "Local, offline viewer for Claude Code sessions stored on this machine.",
+  "private": true,
+  "type": "module",
+  "bin": { "claude-session-viewer": "./server/index.js" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch & node server/index.js --dev; wait",
+    "start": "node server/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test server/**/*.test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "esbuild": "0.28.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "typescript": "7.0.2"
+  }
+}
