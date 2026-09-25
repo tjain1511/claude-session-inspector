@@ -104,7 +104,8 @@ was recorded and say what was not.
   Claude Code's `cost-state`, including cache read/write tokens) in the overview and metadata drawer
 - Cost: recorded from Claude Code's `cost-state` when present; otherwise estimated from token usage
   × an editable $/MTok rate table (Settings → Pricing), clearly marked "≈" / "est.". The default rates
-  were derived from the cost records on this machine and Settings shows, per model, how many recorded
+  were derived from the cost records on this machine where available, and taken from the published Claude
+  API price list (1-hour cache-write rate) otherwise; Settings shows, per model, how many recorded
   sessions the table reproduces within 1%
 - Outline rail (O): one row per user turn with duration split (model/tool), calls, tokens, errors and
   the sub-agents it spawned, so long multi-agent runs and generator/critic loops are navigable

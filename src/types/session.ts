@@ -116,6 +116,7 @@ export interface PricingReport {
   overrides: Record<string, Rate | null>;
   accuracy: { model: string; sessions: number; within1pct: number; maxRelErr: number; rate: Rate | null }[];
   recordedSessions: number;
+  fitted: string[]; // models whose default rate was fitted to local cost records
 }
 
 export interface SubagentSummary {

@@ -99,8 +99,8 @@ export function PricingSettings() {
                     <input className="input rate" inputMode="decimal" value={draft[m]![f.key]} onChange={(e) => setDraft((d) => ({ ...d, [m]: { ...d[m]!, [f.key]: e.target.value } }))} aria-label={`${m} ${f.label} rate`} />
                   </td>
                 ))}
-                <td className="verify" title={a ? `Estimate matches Claude Code's recorded cost within 1% in ${a.within1pct} of ${a.sessions} sessions (worst ${(a.maxRelErr * 100).toFixed(1)}% off)` : 'No recorded costs for this model on this machine'}>
-                  {a ? <span className={a.within1pct === a.sessions ? 'ok' : a.within1pct / a.sessions > 0.8 ? '' : 'warn'}>{a.within1pct}/{a.sessions}</span> : <span className="help-text">–</span>}
+                <td className="verify" title={a ? `Estimate matches Claude Code's recorded cost within 1% in ${a.within1pct} of ${a.sessions} sessions (worst ${(a.maxRelErr * 100).toFixed(1)}% off)` : report.overrides[m] ? 'Your own rate; no recorded costs for this model on this machine' : 'From the published Claude API price list (1-hour cache write); no recorded costs for this model on this machine yet'}>
+                  {a ? <span className={a.within1pct === a.sessions ? 'ok' : a.within1pct / a.sessions > 0.8 ? '' : 'warn'}>{a.within1pct}/{a.sessions}</span> : <span className="help-text">{report.overrides[m] ? 'custom' : 'price list'}</span>}
                 </td>
                 <td><button type="button" className="btn ghost sm" onClick={() => remove(m)} title="Remove this model's rate">×</button></td>
               </tr>
@@ -122,7 +122,7 @@ export function PricingSettings() {
       </div>
       {err && <div className="error-text">{err}</div>}
       <p className="help-text">
-        US$ per million tokens. Used only for sessions without a Claude Code cost record (live or unpriced ones); recorded costs are always shown as-is. "Verified" counts how many of your {report.recordedSessions} priced sessions the table reproduces to within 1%. The defaults were derived from those records.
+        US$ per million tokens. Used only for sessions without a Claude Code cost record (live or unpriced ones); recorded costs are always shown as-is. "Verified" counts how many of your {report.recordedSessions} priced sessions the table reproduces to within 1%. Defaults marked with a count were fitted to those records; "price list" rows come from the published Claude API prices with the 1-hour cache-write rate, which is what Claude Code's recorded costs correspond to.
       </p>
     </div>
   );

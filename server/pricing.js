@@ -5,12 +5,29 @@
 // Estimates are always labelled as such in the UI; recorded costs are never replaced.
 
 export const DEFAULT_RATES = {
+  // Fitted to this machine's cost-state records (recorded costUSD == usage × rate to the cent).
   'claude-fable-5-1': { input: 10, cacheRead: 0.25, cacheWrite: 20, output: 50 },
   'claude-fable-5': { input: 10, cacheRead: 1, cacheWrite: 20, output: 50 },
   'claude-opus-5[1m]': { input: 5, cacheRead: 0.5, cacheWrite: 10, output: 25 },
   'claude-opus-5': { input: 5, cacheRead: 0.5, cacheWrite: 10, output: 25 },
   'claude-haiku-4-5-20251001': { input: 1, cacheRead: 0.1, cacheWrite: 1.25, output: 5 },
+  // From the published Claude API price list (platform.claude.com/docs/en/about-claude/pricing),
+  // using the 1-hour cache-write column, which is what the recorded rates above correspond to
+  // for the main models. Not yet verified against local cost records.
+  'claude-opus-5-5': { input: 4, cacheRead: 0.2, cacheWrite: 8, output: 20 },
+  'claude-mythos-5-1': { input: 10, cacheRead: 0.25, cacheWrite: 20, output: 50 },
+  'claude-mythos-5': { input: 10, cacheRead: 1, cacheWrite: 20, output: 50 },
+  'claude-opus-4-8': { input: 5, cacheRead: 0.5, cacheWrite: 10, output: 25 },
+  'claude-opus-4-7': { input: 5, cacheRead: 0.5, cacheWrite: 10, output: 25 },
+  'claude-opus-4-6': { input: 5, cacheRead: 0.5, cacheWrite: 10, output: 25 },
+  'claude-opus-4-5': { input: 5, cacheRead: 0.5, cacheWrite: 10, output: 25 },
+  'claude-sonnet-5': { input: 2, cacheRead: 0.2, cacheWrite: 4, output: 10 },
+  'claude-sonnet-4-6': { input: 3, cacheRead: 0.3, cacheWrite: 6, output: 15 },
+  'claude-sonnet-4-5': { input: 3, cacheRead: 0.3, cacheWrite: 6, output: 15 },
 };
+
+/** Models whose default rate was confirmed against recorded Claude Code costs on this machine. */
+export const FITTED_MODELS = new Set(['claude-fable-5-1', 'claude-fable-5', 'claude-opus-5[1m]', 'claude-opus-5', 'claude-haiku-4-5-20251001']);
 
 const FIELDS = ['input', 'cacheRead', 'cacheWrite', 'output'];
 

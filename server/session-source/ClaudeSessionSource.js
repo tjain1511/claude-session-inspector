@@ -16,7 +16,7 @@ import { readJsonlFrom, readRecordAt, readRecordAtLine } from './parser.js';
 import { createSummaryState, reduceRecord, summaryFromState } from './summarize.js';
 import { normalizeRecords } from './normalize.js';
 import { createContextState, reduceContext, contextFromState } from './context.js';
-import { mergeRates, estimateCost, checkRates } from '../pricing.js';
+import { mergeRates, estimateCost, checkRates, FITTED_MODELS } from '../pricing.js';
 import { isUuid, isAgentId, tildify, readJsonSafe, decodeProjectDirName } from '../paths.js';
 
 const CHUNK = 8 * 1024 * 1024;
@@ -269,7 +269,7 @@ export class ClaudeSessionSource extends SessionSource {
     const rates = this.rates();
     const records = [];
     for (const e of this.index.values()) if (e.state?.cost?.modelUsage) records.push(e.state.cost.modelUsage);
-    return { rates, overrides: this.store.getSettings().rates || {}, accuracy: checkRates(records, rates), recordedSessions: records.length };
+    return { rates, overrides: this.store.getSettings().rates || {}, accuracy: checkRates(records, rates), recordedSessions: records.length, fitted: [...FITTED_MODELS] };
   }
 
   listSessions() {

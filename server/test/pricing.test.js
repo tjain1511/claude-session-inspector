@@ -40,3 +40,14 @@ test('pricing: checkRates reports how many recorded sessions the table reproduce
   assert.equal(a.within1pct, 2);
   assert.ok(a.maxRelErr > 0.4);
 });
+
+test('pricing: Opus 5.5 and other price-list models resolve, including dated ids', () => {
+  const r = mergeRates({});
+  assert.deepEqual(rateFor(r, 'claude-opus-5-5'), { input: 4, cacheRead: 0.2, cacheWrite: 8, output: 20 });
+  assert.deepEqual(rateFor(r, 'claude-opus-5-5[1m]'), { input: 4, cacheRead: 0.2, cacheWrite: 8, output: 20 });
+  assert.deepEqual(rateFor(r, 'claude-sonnet-4-5-20250929'), { input: 3, cacheRead: 0.3, cacheWrite: 6, output: 15 });
+  const e = estimateCost({ 'claude-opus-5-5': { input: 1_000_000, output: 100_000, cacheRead: 2_000_000, cacheCreate: 500_000, thinking: 0 } }, [], r);
+  // 4 + 0.4 + 4 + 2
+  assert.equal(Number(e.totalUSD.toFixed(6)), 10.4);
+  assert.equal(e.complete, true);
+});
