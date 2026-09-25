@@ -3,6 +3,7 @@ import { MOD } from '@/utils/format';
 
 const ROWS: [string, string][] = [
   [`${MOD} K`, 'Search sessions'],
+  [`${MOD} B`, 'Show / hide the session list'],
   [`${MOD} R`, 'Refresh sessions'],
   [`${MOD} F`, 'Search within the open session'],
   ['↑ / ↓', 'Navigate sessions (when the list is focused)'],

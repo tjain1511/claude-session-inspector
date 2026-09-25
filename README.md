@@ -51,6 +51,14 @@ tool_use blocks), `attachment`, `system` (turn durations, API errors, recaps), `
 not recognise is kept as an "unknown" event with the raw JSON one click away, so a newer Claude Code
 format degrades gracefully rather than breaking the viewer.
 
+The model's context is also in the transcript, as `attachment` records: `prompt_snapshot` (the
+system prompt and, in one of the snapshots, the initial tool definitions; written since roughly
+Claude Code 2.1.263), `deferred_tools_record` / `deferred_tools_delta` (tools loadable through
+ToolSearch), `agent_listing_delta`, `skill_listing`, `mcp_instructions_delta`, `instructions`
+(CLAUDE.md and memory files), `environment`, `model`, `output_style`, `auto_mode` and
+`command_permissions`. The Context view reads exactly these; sessions from older versions show what
+was recorded and say what was not.
+
 ### What it never does
 
 - Modify Claude's files. Custom names live in `~/.claude-session-viewer/metadata.json`.
@@ -74,6 +82,13 @@ format degrades gracefully rather than breaking the viewer.
 - Tool cards pairing each call with its result: duration, status, interrupted/denied flags, structured
   `toolUseResult`, syntax-highlighted input (shell, JSON, Edit diffs, Write file contents)
 - Time-distribution bar: where the session's wall-clock went (model, tools, waiting for user)
+- Timeline (Gantt) view per user turn: one row per model call and per tool call on a time axis, so
+  parallel batches (∥) and overlapping calls are obvious; model bars run from "inputs ready" to the
+  last streamed block and mark the first block
+- Context view: the system prompt (per part, collapsible), every tool the model was offered with its
+  description and input schema and how often the session used it, agent types, skills, MCP server
+  instructions, injected CLAUDE.md files and the environment snapshot. Each tool card links to its
+  definition; a collapsed "System prompt" card sits at the top of the flow view
 - Sub-agent transcripts nested inside their `Agent` tool call
 - Metadata drawer: ids, cwd, branch, version, permission modes, token totals, cost, sub-agents, file info
 - Raw event inspector for every event (original JSONL record + normalized event)
@@ -82,7 +97,8 @@ format degrades gracefully rather than breaking the viewer.
 - Large sessions: windowed rendering, `content-visibility`, truncated outputs with "show more",
   server-side truncation with on-demand full load
 - Rename sessions inline (header or list), reset to the generated title, duplicates allowed
-- Keyboard: ⌘K search, ⌘R refresh, ⌘F find in session, ↑/↓/Enter/F2 in the list, J/K/E/I in the
+- Collapsible session list (⌘B or the header button)
+- Keyboard: ⌘K search, ⌘B toggle list, ⌘R refresh, ⌘F find in session, ↑/↓/Enter/F2 in the list, J/K/E/I in the
   timeline, Esc closes things, `?` shows the full list
 
 ## Layout
@@ -98,6 +114,7 @@ server/                     Node bridge (ESM, no build step)
     parser.js               incremental JSONL reader (byte offsets, partial lines)
     summarize.js            reducer → session summary + search digest (cached, resumable)
     normalize.js            raw records → normalized events
+    context.js              attachment records → system prompt / tools / agents / skills / instructions
     content.js              text extraction helpers
     cache.js                on-disk summary cache
   test/                     node --test

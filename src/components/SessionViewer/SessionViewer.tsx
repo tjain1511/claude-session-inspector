@@ -11,6 +11,9 @@ import { Timeline, buildItems, type TimelineHandle } from '@/components/Timeline
 import { ToolGantt } from '@/components/Timeline/ToolGantt';
 import type { ForceOpen } from '@/components/Timeline/Card';
 import { SubagentStrip } from './SubagentStrip';
+import { ContextView, ContextCard } from '@/components/Context/ContextView';
+import { ToolDocsContext, type ContextTab } from '@/components/Context/ToolDocs';
+import { useSessionContext } from '@/features/sessions/useSessionContext';
 import { FindBar } from '@/components/Search/FindBar';
 import { RawInspector } from '@/components/Metadata/RawInspector';
 import { eventSearchText } from '@/utils/events';
@@ -37,7 +40,24 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
   const [find, setFind] = useState('');
   const [findIdx, setFindIdx] = useState(0);
   const [forceOpen, setForceOpen] = useState<ForceOpen>(null);
-  const [view, setView] = useState<'flow' | 'gantt'>('flow');
+  const [view, setView] = useState<'flow' | 'gantt' | 'context'>('flow');
+  const [ctxTab, setCtxTab] = useState<ContextTab>('prompt');
+  const [ctxFocus, setCtxFocus] = useState<string | undefined>(undefined);
+  const ctx = useSessionContext(s.id, detail.appendedAt);
+  const toolDocs = useMemo(() => new Map((ctx.context?.tools ?? []).map((t) => [t.name, t])), [ctx.context]);
+  const openContextTab = useCallback((tab: ContextTab, focus?: string) => {
+    setCtxTab(tab);
+    setCtxFocus(focus);
+    setView('context');
+  }, []);
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const d = (e as CustomEvent<{ tab: ContextTab; focus?: string }>).detail;
+      if (d?.tab) openContextTab(d.tab, d.focus);
+    };
+    window.addEventListener('csv:context', onOpen);
+    return () => window.removeEventListener('csv:context', onOpen);
+  }, [openContextTab]);
   const pendingJump = useRef<string | null>(null);
   const [showBar, setShowBar] = useState(true);
   const timeline = useRef<TimelineHandle>(null);
@@ -119,6 +139,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
     setFind('');
     setForceOpen(null);
     setView('flow');
+    setCtxFocus(undefined);
     setAutoScroll(true);
     scrollRef.current?.scrollTo({ top: 0 });
   }, [s.id]);
@@ -134,6 +155,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
   }, [events]);
 
   return (
+    <ToolDocsContext.Provider value={toolDocs}>
     <div className="viewer">
       <div className="viewer-header">
         <div className="viewer-title-row">
@@ -182,7 +204,8 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
         <span className="grow" />
         <div className="radio-row" role="tablist" aria-label="View">
           <button type="button" role="tab" aria-selected={view === 'flow'} className={view === 'flow' ? 'on' : ''} onClick={() => setView('flow')} title="Chronological execution flow">Flow</button>
-          <button type="button" role="tab" aria-selected={view === 'gantt'} className={view === 'gantt' ? 'on' : ''} onClick={() => setView('gantt')} title="Tool calls on a time axis: see which ran in parallel">Timeline</button>
+          <button type="button" role="tab" aria-selected={view === 'gantt'} className={view === 'gantt' ? 'on' : ''} onClick={() => setView('gantt')} title="Model and tool calls on a time axis: see which ran in parallel">Timeline</button>
+          <button type="button" role="tab" aria-selected={view === 'context'} className={view === 'context' ? 'on' : ''} onClick={() => setView('context')} title="System prompt, tools, agents, skills and instructions the model was given">Context</button>
         </div>
         <div className="type-toggles">
           <button type="button" className={`chip ${settings.showThinking ? 'active' : ''}`} onClick={() => update({ showThinking: !settings.showThinking })} aria-pressed={settings.showThinking} title="Show thinking blocks">thinking</button>
@@ -227,8 +250,13 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
           </div>
         ) : view === 'gantt' ? (
           <ToolGantt events={events} subagents={s.subagents} onJump={jumpFromGantt} />
+        ) : view === 'context' ? (
+          <ContextView session={s} ctx={ctx.context} loading={ctx.loading} error={ctx.error} events={events} tab={ctxTab} setTab={(t) => { setCtxTab(t); setCtxFocus(undefined); }} focus={ctxFocus} />
         ) : (
           <>
+            <div className="timeline timeline-context">
+              <ContextCard session={s} ctx={ctx.context} loading={ctx.loading} onOpen={openContextTab} />
+            </div>
             <Timeline ref={timeline} events={events} sessionId={s.id} onRaw={setRawEvent} query={debouncedFind} matchIds={matchIds} currentMatchId={currentMatchId} forceOpen={forceOpen} outputLines={outputLines} subagents={s.subagents} live={!!s.live} scrollParent={scrollRef} />
             {s.live && (
               <div className="live-banner">
@@ -240,5 +268,6 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
       </div>
       {rawEvent && <RawInspector sessionId={s.id} event={rawEvent} onClose={() => setRawEvent(null)} />}
     </div>
+    </ToolDocsContext.Provider>
   );
 }

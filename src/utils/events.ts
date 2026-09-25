@@ -47,8 +47,9 @@ export function toolSummary(tool: string | undefined, input: unknown): string {
   }
 }
 
+/** First non-empty line, skipping lines that are only a wrapper tag such as <pasted_content id="…">. */
 export function firstLine(s: string): string {
-  const l = s.split('\n').find((x) => x.trim()) || '';
+  const l = s.split('\n').find((x) => x.trim() && !/^\s*<\/?[a-z_-]+(\s[^>]*)?>\s*$/i.test(x)) || s.split('\n').find((x) => x.trim()) || '';
   return l.length > 160 ? l.slice(0, 157) + '…' : l;
 }
 

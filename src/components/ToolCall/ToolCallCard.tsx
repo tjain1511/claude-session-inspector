@@ -12,6 +12,8 @@ import { SubagentPanel } from './SubagentPanel';
 import { formatDuration } from '@/utils/format';
 import { toolSummary } from '@/utils/events';
 import { prettyJson } from '@/utils/highlight';
+import { useToolDoc, openContext } from '@/components/Context/ToolDocs';
+import { firstLine } from '@/utils/events';
 
 interface Props {
   event: SessionEvent;
@@ -30,12 +32,22 @@ export function ToolCallCard({ event: e, result, sessionId, onRaw, query, forceO
   const durationMs = e.ts && result?.ts ? Date.parse(result.ts) - Date.parse(e.ts) : null;
   const status: 'success' | 'error' | 'pending' = result ? (result.isError ? 'error' : 'success') : 'pending';
   const desc = toolSummary(e.tool, e.input);
+  const doc = useToolDoc(e.tool);
   const inputText = typeof e.input === 'string' ? e.input : prettyJson(e.input);
   return (
     <Card
       type="tool_call"
       role=""
-      title={e.tool}
+      title={
+        doc ? (
+          <span className="tool-title" title={doc.description ? firstLine(doc.description) : 'Deferred tool: definition not recorded'}>
+            {e.tool}
+            <button type="button" className="tool-doc" aria-label="What the model was told about this tool" onClick={(ev) => { ev.stopPropagation(); openContext('tools', e.tool); }}>
+              <Icon name="info" size={11} />
+            </button>
+          </span>
+        ) : e.tool
+      }
       desc={desc}
       force={forceOpen}
       extraClass={`status-${status}`}

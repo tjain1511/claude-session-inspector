@@ -84,8 +84,12 @@ function Shell() {
       if (mod && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setShowSidebar(true);
+        if (settings.sidebarCollapsed) update({ sidebarCollapsed: false });
         searchRef.current?.focus();
         searchRef.current?.select();
+      } else if (mod && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        update({ sidebarCollapsed: !settings.sidebarCollapsed });
       } else if (mod && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         void sessions.reload(true);
@@ -122,7 +126,7 @@ function Shell() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [sessions, detail, selectedId, rawEvent, metadataId, findOpen, showSettings, showHelp, showIssues]);
+  }, [sessions, detail, selectedId, rawEvent, metadataId, findOpen, showSettings, showHelp, showIssues, settings.sidebarCollapsed, update]);
 
   // Sidebar resize
   const onResizeStart = (e: React.MouseEvent) => {
@@ -164,7 +168,7 @@ function Shell() {
   const metadataSession = metadataId ? sessions.byId.get(metadataId) : null;
 
   return (
-    <div className={`app ${showSidebar ? 'show-sidebar' : ''}`} style={{ ['--sidebar-w' as string]: `${settings.sidebarWidth}px` }}>
+    <div className={`app ${showSidebar ? 'show-sidebar' : ''} ${settings.sidebarCollapsed ? 'sidebar-collapsed' : ''}`} style={{ ['--sidebar-w' as string]: `${settings.sidebarWidth}px` }}>
       <Header
         version={st?.version ?? null}
         connected={sessions.connected}
@@ -180,11 +184,13 @@ function Shell() {
         onSettings={() => setShowSettings(true)}
         onIssues={() => setShowIssues(true)}
         onToggleSidebar={() => setShowSidebar((v) => !v)}
+        sidebarCollapsed={settings.sidebarCollapsed}
+        onCollapseSidebar={() => update({ sidebarCollapsed: !settings.sidebarCollapsed })}
         onHelp={() => setShowHelp(true)}
         theme={settings.theme}
         onToggleTheme={() => update({ theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light' })}
       />
-      <aside className="sidebar">
+      <aside className="sidebar" aria-hidden={settings.sidebarCollapsed}>
         <div className="sidebar-top">
           <SearchInput
             ref={searchRef}

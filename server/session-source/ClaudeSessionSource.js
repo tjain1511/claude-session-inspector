@@ -15,6 +15,7 @@ import { SessionSource } from './SessionSource.js';
 import { readJsonlFrom, readRecordAt, readRecordAtLine } from './parser.js';
 import { createSummaryState, reduceRecord, summaryFromState } from './summarize.js';
 import { normalizeRecords } from './normalize.js';
+import { createContextState, reduceContext, contextFromState } from './context.js';
 import { isUuid, isAgentId, tildify, readJsonSafe, decodeProjectDirName } from '../paths.js';
 
 const CHUNK = 8 * 1024 * 1024;
@@ -40,6 +41,8 @@ export class ClaudeSessionSource extends SessionSource {
     this.issues = [];
     this.registry = { at: 0, map: new Map() };
     this.lastDiscovery = null;
+    /** sessionId -> {size, mtimeMs, context} */
+    this.contextCache = new Map();
   }
 
   // ---------- indexing ----------
@@ -315,6 +318,37 @@ export class ClaudeSessionSource extends SessionSource {
     const entry = this.entryFor(id);
     const r = this.readEvents(entry.file, 'main', opts);
     return { id, ...r, summary: this.summaryFor(entry) };
+  }
+
+  /** The system prompt, tool/agent/skill listings and instructions the model was given (from attachment records). */
+  readContext(id) {
+    const entry = this.entryFor(id);
+    const st = safeStat(entry.file);
+    if (!st) throw Object.assign(new Error('file vanished'), { status: 404 });
+    const hit = this.contextCache.get(id);
+    if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.context;
+    const state = createContextState();
+    let offset = 0;
+    let line = 1;
+    let guard = 0;
+    while (guard++ < 10_000) {
+      const r = readJsonlFrom(entry.file, { offset, line, maxBytes: CHUNK });
+      if (r.truncated) break;
+      for (const rec of r.records) {
+        try {
+          reduceContext(state, rec);
+        } catch {
+          /* ignore malformed attachment */
+        }
+      }
+      offset = r.offset;
+      line = r.line;
+      if ((r.records.length === 0 && r.errors.length === 0) || offset >= r.size) break;
+    }
+    const context = { id, ...contextFromState(state) };
+    if (this.contextCache.size > 32) this.contextCache.delete(this.contextCache.keys().next().value);
+    this.contextCache.set(id, { size: st.size, mtimeMs: st.mtimeMs, context });
+    return context;
   }
 
   readSubagent(id, agentId, opts = {}) {

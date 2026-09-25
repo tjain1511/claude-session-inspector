@@ -13,16 +13,21 @@ interface Props {
   onSettings: () => void;
   onIssues: () => void;
   onToggleSidebar: () => void;
+  sidebarCollapsed: boolean;
+  onCollapseSidebar: () => void;
   onHelp: () => void;
   theme: 'system' | 'dark' | 'light';
   onToggleTheme: () => void;
 }
 
-export function Header({ version, connected, watching, indexing, loaded, total, issues, onRefresh, onSettings, onIssues, onToggleSidebar, onHelp, theme, onToggleTheme }: Props) {
+export function Header({ version, connected, watching, indexing, loaded, total, issues, onRefresh, onSettings, onIssues, onToggleSidebar, sidebarCollapsed, onCollapseSidebar, onHelp, theme, onToggleTheme }: Props) {
   return (
     <header className="header">
       <div className="brand">
         <button type="button" className="btn icon ghost narrow-only" onClick={onToggleSidebar} aria-label="Toggle session list">
+          <Icon name="sidebar" />
+        </button>
+        <button type="button" className={`btn icon ghost wide-only ${sidebarCollapsed ? 'active' : ''}`} onClick={onCollapseSidebar} aria-label={sidebarCollapsed ? 'Show session list' : 'Hide session list'} aria-pressed={sidebarCollapsed} title={`${sidebarCollapsed ? 'Show' : 'Hide'} session list (${MOD}+B)`}>
           <Icon name="sidebar" />
         </button>
         <span className="dot" aria-hidden="true" />

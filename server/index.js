@@ -262,6 +262,7 @@ async function handleApi(req, res, url) {
       const s = src.getSummary(id);
       return s ? send(res, 200, s) : send(res, 404, { error: 'session not found' });
     }
+    if (sub === 'context' && req.method === 'GET') return send(res, 200, src.readContext(id));
     if (sub === 'subagents' && subId && req.method === 'GET') {
       if (!isAgentId(subId)) return send(res, 400, { error: 'invalid agent id' });
       const from = q.has('from') ? Number(q.get('from')) : 0;

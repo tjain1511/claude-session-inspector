@@ -9,6 +9,7 @@ export interface Settings {
   showMetadata: boolean; // show collapsed metadata/attachment rows in the timeline
   showThinking: boolean;
   sidebarWidth: number;
+  sidebarCollapsed: boolean;
   theme: 'system' | 'dark' | 'light';
 }
 
@@ -21,6 +22,7 @@ const DEFAULTS: Settings = {
   showMetadata: true,
   showThinking: true,
   sidebarWidth: 320,
+  sidebarCollapsed: false,
   theme: 'system',
 };
 
