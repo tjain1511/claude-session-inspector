@@ -273,8 +273,8 @@ function MetaGroup({ events, onRaw, ts, startTs, mode, matchIds }: { events: Ses
   const rel = ts != null && startTs != null ? ts - startTs : null;
   return (
     <div className="meta-group" data-event-id={events[0]!.id}>
-      <div className="gutter" style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)', paddingTop: 3, position: 'relative' }}>
-        <span className="marker" style={{ position: 'absolute', right: -12, top: 8, width: 7, height: 7, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--text-3)' }} />
+      <div className="gutter" style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)', paddingTop: 3, paddingRight: 20, position: 'relative' }}>
+        <span className="marker" style={{ position: 'absolute', right: 5, top: 8, width: 7, height: 7, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--text-3)' }} />
         {ts != null ? (mode === 'local' ? formatClock(events[0]!.ts) : formatOffset(rel)) : ''}
       </div>
       <div className="body">

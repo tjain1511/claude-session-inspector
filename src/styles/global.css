@@ -197,6 +197,8 @@ a {
   font-weight: 600;
   font-size: 13px;
   width: calc(var(--sidebar-w) - 12px);
+  min-width: max-content; /* never wrap the title when the sidebar is narrow */
+  white-space: nowrap;
   flex-shrink: 0;
 }
 .header .brand .dot {
@@ -1026,6 +1028,7 @@ kbd {
   color: var(--text-3);
   line-height: 1.35;
   padding-top: 5px;
+  padding-right: 20px; /* keep the text clear of the vertical line at gutter-w - 9px */
   position: relative;
   user-select: none;
 }
@@ -1042,7 +1045,7 @@ kbd {
 }
 .event .gutter .marker {
   position: absolute;
-  right: -13px;
+  right: 4px; /* centred on the vertical line */
   top: 9px;
   width: 9px;
   height: 9px;
