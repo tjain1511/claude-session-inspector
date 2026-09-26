@@ -134,7 +134,10 @@ function NoteDetail({ p, note, ctx }: { p: MemoryProject; note: MemoryNote; ctx:
         {slug}
       </button>
     ) : (
-      <span key={key} className="mem-wiki missing" title="No note with this name in this project yet">{slug}</span>
+      <span key={key} className="mem-wiki missing" title={`No note named “${slug}” exists in ${p.project.name}. The memory format lets Claude link a note it has not written yet, so this is a placeholder, not a broken file.`}>
+        {slug}
+        <span className="mem-wiki-tag">not written</span>
+      </span>
     );
   };
   const changes = note.history.filter((h) => CHANGE_OPS.has(h.op)).length;

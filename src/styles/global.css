@@ -4378,6 +4378,16 @@ button.link:hover {
   border: 1px dashed var(--border-strong);
   color: var(--text-3);
 }
+.mem-wiki.missing:hover {
+  text-decoration: none;
+  cursor: help;
+}
+.mem-wiki-tag {
+  margin-left: 5px;
+  font-size: 0.8em;
+  font-style: italic;
+  color: var(--text-3);
+}
 .mem-links {
   display: flex;
   flex-wrap: wrap;
