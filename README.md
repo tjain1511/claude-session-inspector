@@ -10,7 +10,7 @@ dependencies beyond Node.js.
 
 ## Demo
 
-▶️ [Watch the demo video](https://github.com/tjain1511/claude-session-inspector/raw/master/claude-session-inspector-demo.mp4) (MP4, ~72 MB)
+https://github.com/user-attachments/assets/b320b8fa-add7-48fa-a272-5f823d6a5336
 
 ## Run it
 
