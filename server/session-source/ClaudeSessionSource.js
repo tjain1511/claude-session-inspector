@@ -5,6 +5,7 @@
 //   <claudeDir>/projects/<encoded-cwd>/<session-uuid>/subagents/agent-<id>.meta.json  {agentType, description, toolUseId}
 //   <claudeDir>/projects/<encoded-cwd>/<session-uuid>/tool-results/<id>.txt           persisted large tool outputs
 //   <claudeDir>/projects/<encoded-cwd>/memory/*.md                                   project memory (not a session)
+//   <claudeDir>/CLAUDE.md, <claudeDir>/rules/**/*.md                                  global memory, loaded in every project
 //   <claudeDir>/sessions/<pid>.json                                                   registry of running Claude processes
 //
 // Everything is read-only. All paths handed out to the HTTP layer are derived from the
@@ -14,7 +15,8 @@ import path from 'node:path';
 import { SessionSource } from './SessionSource.js';
 import { readJsonlFrom, readRecordAt, readRecordAtLine } from './parser.js';
 import { createSummaryState, reduceRecord, summaryFromState, memorySummary } from './summarize.js';
-import { readMemoryDirs } from '../memory.js';
+import { readMemoryDirs, readGlobalMemory } from '../memory.js';
+import { GLOBAL_MEMORY, setGlobalMemoryDir } from './memory-ops.js';
 import { normalizeRecords } from './normalize.js';
 import { createContextState, reduceContext, contextFromState } from './context.js';
 import { mergeRates, estimateCost, checkRates, FITTED_MODELS } from '../pricing.js';
@@ -35,6 +37,7 @@ export class ClaudeSessionSource extends SessionSource {
     super();
     this.projectsDir = projectsDir;
     this.claudeDir = claudeDir;
+    if (claudeDir) setGlobalMemoryDir(claudeDir);
     this.cache = cache;
     this.store = store;
     this.log = log;
@@ -305,16 +308,29 @@ export class ClaudeSessionSource extends SessionSource {
     }
     const byTs = (a, b) => (a.ts || '').localeCompare(b.ts || '');
     const projects = new Map(dirs.map((d) => [d.dirName, d]));
+    // Global files can sit in subfolders (rules/x/y.md); project folder names never contain '/'.
+    const splitKey = (k) => [k.slice(0, k.indexOf('/')), k.slice(k.indexOf('/') + 1)];
     for (const k of history.keys()) {
-      const [dirName] = k.split('/');
+      const [dirName] = splitKey(k);
+      if (dirName === GLOBAL_MEMORY) continue;
       if (!projects.has(dirName)) projects.set(dirName, { dirName, dir: path.join(this.projectsDir, dirName, 'memory'), notes: [], index: null, missingDir: true });
     }
     const out = [];
+    const g = readGlobalMemory(this.claudeDir);
+    const gOnDisk = new Set(g.notes.map((n) => n.file));
+    const gNotes = g.notes.map((n) => ({ ...n, path: tildify(n.path), history: (history.get(`${GLOBAL_MEMORY}/${n.file}`) || []).sort(byTs) }));
+    for (const [k, ops] of history) {
+      const [dirName, file] = splitKey(k);
+      // A global file sessions only tried to read may never have existed; list it only once something wrote it.
+      if (dirName !== GLOBAL_MEMORY || gOnDisk.has(file) || !ops.some((o) => o.op !== 'read' && o.op !== 'loaded')) continue;
+      gNotes.push({ file, path: tildify(path.join(g.dir, file)), kind: file.startsWith('rules/') ? 'rule' : 'user', missing: true, sizeBytes: 0, mtime: null, body: '', frontmatter: null, frontmatterRaw: null, links: [], history: ops.sort(byTs) });
+    }
+    const global = { dirName: GLOBAL_MEMORY, dir: tildify(g.dir), missingDir: false, scope: 'global', project: { name: 'Global', path: tildify(g.dir) }, notes: gNotes, index: null, userFile: tildify(g.userFile), rulesDir: tildify(g.rulesDir) };
     for (const d of projects.values()) {
       const onDisk = new Set(d.notes.map((n) => n.file));
       const notes = d.notes.map((n) => ({ ...n, path: tildify(n.path), history: (history.get(`${d.dirName}/${n.file}`) || []).sort(byTs) }));
       for (const [k, ops] of history) {
-        const [dirName, file] = k.split('/');
+        const [dirName, file] = splitKey(k);
         if (dirName !== d.dirName || onDisk.has(file) || file === 'MEMORY.md') continue;
         notes.push({ file, path: tildify(path.join(d.dir, file)), missing: true, sizeBytes: 0, mtime: null, body: '', frontmatter: null, frontmatterRaw: null, links: [], history: ops.sort(byTs) });
       }
@@ -325,7 +341,8 @@ export class ClaudeSessionSource extends SessionSource {
     }
     const last = (p) => [p.index?.mtime, ...p.notes.map((n) => n.mtime || n.history.at(-1)?.ts)].filter(Boolean).sort().at(-1) || '';
     out.sort((a, b) => last(b).localeCompare(last(a)));
-    return { memoryDirName: 'memory', projects: out };
+    // Global memory always comes first, even when empty, so it is clear where it would live.
+    return { memoryDirName: 'memory', projects: [global, ...out] };
   }
 
   listSessions() {
@@ -519,12 +536,15 @@ export class ClaudeSessionSource extends SessionSource {
       if (updated.size || removed.size) onChange({ type: 'sessions', updated: [...updated], removed: [...removed] });
     };
     const watchers = [];
+    const memoryChanged = () => {
+      if (!memoryTimer) memoryTimer = setTimeout(() => { memoryTimer = null; onChange({ type: 'memory' }); }, 300);
+    };
     try {
       const w = fs.watch(this.projectsDir, { recursive: true }, (_ev, filename) => {
         if (!filename) return;
         const rel = String(filename);
         if (/(^|[\\/])memory[\\/][^\\/]+\.md$/.test(rel)) {
-          if (!memoryTimer) memoryTimer = setTimeout(() => { memoryTimer = null; onChange({ type: 'memory' }); }, 300);
+          memoryChanged();
           return;
         }
         if (!rel.endsWith('.jsonl')) return;
@@ -543,6 +563,16 @@ export class ClaudeSessionSource extends SessionSource {
         if (pending.size && !timer) timer = setTimeout(flush, 0);
       }, 3000);
       watchers.push({ close: () => clearInterval(poll) });
+    }
+    // Global memory: <claudeDir>/CLAUDE.md (watched through its folder so a first write is seen) and rules/.
+    for (const [dir, recursive, test] of [[this.claudeDir, false, (f) => f === 'CLAUDE.md'], [path.join(this.claudeDir, 'rules'), true, (f) => f.endsWith('.md')]]) {
+      try {
+        const gw = fs.watch(dir, { recursive }, (_ev, filename) => filename && test(String(filename)) && memoryChanged());
+        gw.on('error', () => {});
+        watchers.push(gw);
+      } catch {
+        /* folder absent */
+      }
     }
     try {
       const rw = fs.watch(path.join(this.claudeDir, 'sessions'), () => {

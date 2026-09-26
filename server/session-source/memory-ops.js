@@ -1,23 +1,56 @@
-// Detects reads and writes of Claude Code's auto-memory notes inside transcript records.
-// Memory lives at <claudeDir>/projects/<encoded-cwd>/memory/*.md (MEMORY.md is the index).
+// Detects reads and writes of Claude Code's memory files inside transcript records.
+// Project auto-memory lives at <claudeDir>/projects/<encoded-cwd>/memory/*.md (MEMORY.md is the index);
+// global (user-level) memory is <claudeDir>/CLAUDE.md plus <claudeDir>/rules/**/*.md, loaded in every project.
 // Only what the record shows is reported: the tool, the path and, for writes, the content.
+import os from 'node:os';
+import path from 'node:path';
+
+/** Project key used for the user-level memory files, which belong to no single project. */
+export const GLOBAL_MEMORY = '~global';
 
 // Encoded project folder names and note files are plain [\w.-]; this skips globs and placeholders.
 const MEMORY_PATH = /\/projects\/([\w.-]+)\/memory\/([\w.-]+\.md)(?![\w.*-])/g;
 const CONTENT_CAP = 16 * 1024;
 
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+let globalPath = null;
+
+/** Point global-memory detection at a config dir (defaults to CLAUDE_CONFIG_DIR or ~/.claude). */
+export function setGlobalMemoryDir(dir) {
+  const abs = path.resolve(dir);
+  const roots = [esc(abs)];
+  if (abs === path.join(os.homedir(), '.claude')) roots.push('~/\\.claude', '\\$HOME/\\.claude', '\\$\\{HOME\\}/\\.claude');
+  // Anchored so a repo's own `.claude/CLAUDE.md` or `.claude/rules/` is not taken for the user's.
+  globalPath = new RegExp(`(?:^|[\\s"'=(:])(?:${roots.join('|')})/(CLAUDE\\.md|rules/[\\w./-]+\\.md)(?![\\w.*-])`, 'g');
+}
+setGlobalMemoryDir(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'));
+
 /** All distinct memory files a string mentions: [{project, file}] */
 export function memoryPaths(s) {
-  if (typeof s !== 'string' || !s.includes('/memory/')) return [];
+  if (typeof s !== 'string') return [];
   const out = [];
   const seen = new Set();
-  for (const m of s.matchAll(MEMORY_PATH)) {
-    const k = `${m[1]}/${m[2]}`;
-    if (seen.has(k)) continue;
+  const add = (project, file) => {
+    const k = `${project}/${file}`;
+    if (seen.has(k)) return;
     seen.add(k);
-    out.push({ project: m[1], file: m[2] });
-  }
+    out.push({ project, file });
+  };
+  if (s.includes('/memory/')) for (const m of s.matchAll(MEMORY_PATH)) add(m[1], m[2]);
+  if (s.includes('.claude/')) for (const m of s.matchAll(globalPath)) if (!m[1].includes('..')) add(GLOBAL_MEMORY, m[1]);
   return out;
+}
+
+/**
+ * A command with the data it carries blanked out: heredoc bodies (keeping the `cat > f <<EOF` line
+ * itself; only `cat`/`tee` ones unless `allHeredocs`, since a script's body is code) and `echo`/`printf` strings. Text there — an index line, a script's string literal — is
+ * content being written somewhere, not a file the command touches.
+ */
+function shellCode(cmd, allHeredocs = false) {
+  const heredoc = allHeredocs ? /(<<-?\s*(['"]?)(\w+)\2[^\n]*\n)[\s\S]*?\n\3(?=\n|$)/g : /(\b(?:cat|tee)\b[^\n]*<<-?\s*(['"]?)(\w+)\2[^\n]*\n)[\s\S]*?\n\3(?=\n|$)/g;
+  return cmd
+    .replace(heredoc, '$1')
+    .replace(/\b(echo|printf)((?:\s+-\w+)*)\s+("(?:[^"\\]|\\.)*"|'[^']*')/g, '$1$2 ""');
 }
 
 const MEMORY_DIR = /\/projects\/([\w.-]+)\/memory(?![\w.-]|\/[\w.-]+\.md)/g;
@@ -35,10 +68,7 @@ export function inferredMemoryPaths(cmd) {
   if (dirs.size !== 1) return [];
   const [project] = dirs;
   const direct = new Set(memoryPaths(cmd).map((p) => p.file));
-  // Text written by `cat`/`tee` heredocs or `echo`/`printf` strings is data (e.g. an index line naming a note), not a file access.
-  const code = cmd
-    .replace(/(\b(?:cat|tee)\b[^\n]*<<-?\s*(['"]?)(\w+)\2[^\n]*\n)[\s\S]*?\n\3(?=\n|$)/g, '$1')
-    .replace(/\b(echo|printf)((?:\s+-\w+)*)\s+("(?:[^"\\]|\\.)*"|'[^']*')/g, '$1$2 ""');
+  const code = shellCode(cmd);
   const out = [];
   const seen = new Set();
   for (const m of code.matchAll(BARE_NOTE)) {
@@ -54,14 +84,14 @@ const clip = (s) => (typeof s === 'string' ? (s.length > CONTENT_CAP ? s.slice(0
 
 // A shell command writes a file when the path is a redirection/tee target, or when it runs an
 // in-place editor on it. Anything else that merely mentions the path (cat, head, grep, ls) reads.
-function bashOp(cmd, file) {
+function bashOp(cmd, file, scripts = true) {
   const f = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   if (new RegExp(`\\brm\\s+(-\\w+\\s+)*[^\\n;|&]*${f}`).test(cmd)) return 'delete';
   if (new RegExp(`(>>|\\btee\\s+-a\\s+)\\s*["']?[^\\s;|&]*${f}`).test(cmd)) return 'append';
   if (new RegExp(`(>|\\btee\\s+)\\s*["']?[^\\s;|&]*${f}`).test(cmd)) return 'write';
   if (new RegExp(`\\bsed\\s+-i[^\\n;|&]*${f}`).test(cmd)) return 'edit';
   if (new RegExp(`\\bmv\\s+[^\\n;|&]*${f}`).test(cmd)) return 'write';
-  if (/\bpython3?\b|\bnode\b|\bperl\b/.test(cmd) && /write|open\(.*['"]w/.test(cmd)) return 'edit';
+  if (scripts && /\bpython3?\b|\bnode\b|\bperl\b/.test(cmd) && /write|open\(.*['"]w/.test(cmd)) return 'edit';
   return 'read';
 }
 
@@ -86,11 +116,19 @@ export function memoryOpsFromToolUse(block) {
       ops.push(op);
     }
   } else if (name === 'Bash' && typeof input.command === 'string') {
-    for (const p of [...memoryPaths(input.command), ...inferredMemoryPaths(input.command)]) {
-      const op = bashOp(input.command, p.file);
+    // Global paths are counted only where the shell itself uses them: a script or heredoc that merely
+    // mentions ~/.claude/CLAUDE.md (as this viewer's own sources do) neither reads nor writes it.
+    const code = shellCode(input.command, true);
+    const global = new Set(memoryPaths(code).filter((p) => p.project === GLOBAL_MEMORY).map((p) => p.file));
+    const found = [...memoryPaths(input.command), ...inferredMemoryPaths(input.command)].filter((p) => p.project !== GLOBAL_MEMORY || global.has(p.file));
+    for (const p of found) {
+      const isGlobal = p.project === GLOBAL_MEMORY;
+      // `CLAUDE.md` alone would also match a repo's own file in the same command.
+      const needle = isGlobal ? `.claude/${p.file}` : p.file;
+      const op = bashOp(isGlobal ? code : input.command, needle, !isGlobal);
       const entry = { ...p, op, tool: 'Bash', command: clip(input.command) };
       if (op === 'write' || op === 'append') {
-        const body = heredocBody(input.command, p.file);
+        const body = heredocBody(input.command, needle);
         if (body != null) entry.content = clip(body);
       }
       ops.push(entry);
@@ -99,7 +137,7 @@ export function memoryOpsFromToolUse(block) {
   return ops;
 }
 
-/** Memory files injected into the context by an attachment record (MEMORY.md at session start). */
+/** Memory files injected into the context by an attachment record (MEMORY.md, ~/.claude/CLAUDE.md at session start). */
 export function memoryOpsFromAttachment(att) {
   if (!att || typeof att !== 'object') return [];
   const paths = [];

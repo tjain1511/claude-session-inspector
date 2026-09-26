@@ -312,6 +312,8 @@ export interface MemoryNote {
   body: string;
   links: string[];
   history: MemoryHistoryEntry[];
+  /** Global memory only: ~/.claude/CLAUDE.md, a ~/.claude/rules file, or the managed policy file. */
+  kind?: 'user' | 'rule' | 'managed';
 }
 
 export interface MemoryIndex extends MemoryNote {
@@ -325,6 +327,10 @@ export interface MemoryProject {
   project: { name: string; path: string };
   notes: MemoryNote[];
   index: MemoryIndex | null;
+  /** Set on the one entry holding global memory (loaded in every project), which has no MEMORY.md. */
+  scope?: 'global';
+  userFile?: string;
+  rulesDir?: string;
 }
 
 export interface MemoryReport {

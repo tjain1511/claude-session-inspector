@@ -69,3 +69,35 @@ test('memory notes: memory folders are read with the index kept separate', () =>
   assert.deepEqual([p.dirName, p.notes.map((n) => n.file), p.index.entries.length], ['-Users-u-app', ['a.md'], 1]);
   fs.rmSync(root, { recursive: true });
 });
+
+test('memory ops: global CLAUDE.md and rules files are recognised, a repo .claude folder is not', async () => {
+  const { GLOBAL_MEMORY, setGlobalMemoryDir, memoryPaths } = await import('../session-source/memory-ops.js');
+  const G = path.join(os.homedir(), '.claude');
+  setGlobalMemoryDir(G);
+  const [w] = memoryOpsFromToolUse({ name: 'Write', input: { file_path: `${G}/CLAUDE.md`, content: 'be terse' } });
+  assert.deepEqual([w.project, w.file, w.op, w.content], [GLOBAL_MEMORY, 'CLAUDE.md', 'write', 'be terse']);
+  assert.deepEqual(memoryPaths(`cat ~/.claude/rules/style/ts.md`), [{ project: GLOBAL_MEMORY, file: 'rules/style/ts.md' }]);
+  assert.deepEqual(memoryPaths('/repo/.claude/CLAUDE.md /repo/.claude/rules/a.md'), []);
+  // Copying the global file into a repo reads it; it does not write it.
+  assert.deepEqual(bash(`cat ${G}/CLAUDE.md > /repo/CLAUDE.md`).map((o) => o.slice(0, 2)), [['read', 'CLAUDE.md']]);
+  assert.deepEqual(memoryOpsFromAttachment({ type: 'instructions', files: [{ path: `${G}/CLAUDE.md`, type: 'User' }] }).map((o) => [o.project, o.op]), [[GLOBAL_MEMORY, 'loaded']]);
+});
+
+test('memory notes: global memory reads CLAUDE.md and nested rules', async () => {
+  const { readGlobalMemory } = await import('../memory.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gmem-'));
+  assert.deepEqual(readGlobalMemory(root).notes.filter((n) => n.kind !== 'managed'), []);
+  fs.mkdirSync(path.join(root, 'rules', 'sub'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Me\n');
+  fs.writeFileSync(path.join(root, 'rules', 'sub', 'ts.md'), '---\npaths: src/**\n---\nUse strict mode');
+  const notes = readGlobalMemory(root).notes.filter((n) => n.kind !== 'managed');
+  assert.deepEqual(notes.map((n) => [n.file, n.kind]), [['CLAUDE.md', 'user'], ['rules/sub/ts.md', 'rule']]);
+  fs.rmSync(root, { recursive: true });
+});
+
+test('memory ops: a script or heredoc that only mentions the global CLAUDE.md does not touch it', async () => {
+  const G = path.join(os.homedir(), '.claude');
+  assert.deepEqual(bash(`python3 - <<'EOF'\nopen('x.js','w').write("${G}/CLAUDE.md")\nEOF`), []);
+  assert.deepEqual(bash(`cat >> notes.md <<'EOF'\nsee ~/.claude/CLAUDE.md\nEOF`), []);
+  assert.deepEqual(bash(`cat > ~/.claude/CLAUDE.md <<'EOF'\nbe terse\nEOF`), [['write', 'CLAUDE.md', 'be terse']]);
+});

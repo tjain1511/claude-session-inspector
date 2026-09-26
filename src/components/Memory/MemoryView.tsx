@@ -1,5 +1,6 @@
-// Claude Code's auto-memory, per project: every note with its front matter, rendered body,
-// [[links]], place in the MEMORY.md index, and the history of sessions that read or changed it.
+// Claude Code's memory: global files loaded in every project (~/.claude/CLAUDE.md, ~/.claude/rules)
+// and per-project auto-memory — every note with its front matter, rendered body, [[links]], place in
+// the MEMORY.md index, and the history of sessions that read or changed it.
 // Everything shown comes from the memory folders on disk and the transcript records that
 // touched them; the history keeps notes that have since been deleted.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -12,7 +13,7 @@ import { DiffView } from '@/components/ToolCall/ToolInput';
 import { SearchInput } from '@/components/Search/SearchInput';
 import { Markdown, type WikiLink } from '@/utils/markdown';
 import { formatBytes, formatDateTime, plural, relativeTime } from '@/utils/format';
-import { CHANGE_OPS, NOTE_TYPES, OP_LABEL, noteDescription, noteModified, noteName, noteOrigin, noteType } from '@/utils/memory';
+import { CHANGE_OPS, GLOBAL_KIND_LABEL, NOTE_TYPES, OP_LABEL, noteDescription, noteModified, noteName, noteOrigin, noteType } from '@/utils/memory';
 
 export interface MemoryFocus {
   project?: string;
@@ -152,6 +153,7 @@ function NoteDetail({ p, note, ctx }: { p: MemoryProject; note: MemoryNote; ctx:
       <header className="mem-note-head">
         <h2>{name}</h2>
         <TypeChip type={noteType(note)} />
+        {note.kind && <span className="chip">{GLOBAL_KIND_LABEL[note.kind]}</span>}
         {note.missing && <span className="chip warn" title="This file is no longer on disk; the history below shows what sessions did to it">deleted</span>}
       </header>
       {desc && <p className="mem-desc">{desc}</p>}
@@ -165,9 +167,11 @@ function NoteDetail({ p, note, ctx }: { p: MemoryProject; note: MemoryNote; ctx:
             </dd>
           </>
         )}
-        <dt>Index</dt>
+        <dt>{note.kind ? 'Scope' : 'Index'}</dt>
         <dd>
-          {indexed ? (
+          {note.kind ? (
+            <span title="Claude Code reads this file at the start of every session, whatever the project">{GLOBAL_KIND_LABEL[note.kind]} · loaded in every project</span>
+          ) : indexed ? (
             <>
               <span className="status-success"><Icon name="check" size={11} /> listed in MEMORY.md</span>
               {indexed.hook && <span className="mem-hook">{indexed.hook}</span>}
@@ -219,6 +223,56 @@ function NoteDetail({ p, note, ctx }: { p: MemoryProject; note: MemoryNote; ctx:
       )}
       {tab === 'history' && <History entries={note.history} ctx={ctx} emptyText="No transcript on this machine records a change to this note. It may predate the kept transcripts or have been edited by hand." />}
       {tab === 'source' && <CodeBlock code={source} lang="markdown" title={note.file} initialLines={200} />}
+    </article>
+  );
+}
+
+function GlobalDetail({ p, ctx }: { p: MemoryProject; ctx: Ctx }) {
+  const present = p.notes.filter((n) => !n.missing);
+  const user = present.find((n) => n.kind === 'user');
+  const history = p.notes.flatMap((n) => n.history).sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
+  const loadSessions = new Set(history.filter((h) => h.op === 'loaded').map((h) => h.sessionId)).size;
+  return (
+    <article className="mem-note">
+      <div className="mem-crumbs"><span>Global</span></div>
+      <header className="mem-note-head">
+        <h2>Global memory</h2>
+        <span className="help-text mono">{p.dir}</span>
+      </header>
+      <p className="mem-desc">
+        Files Claude Code loads into every session in every project{loadSessions ? <>, loaded into {plural(loadSessions, 'session')} so far</> : null}.
+        Unlike the per-project auto-memory below, Claude does not build this up on its own: it holds what you (or Claude, when you ask it to) write here.
+      </p>
+      <table className="mem-index">
+        <tbody>
+          <tr className={user ? '' : 'absent'}>
+            <td>{user ? <button type="button" className="linkish" onClick={() => ctx.onFocus({ project: p.dirName, file: user.file })}>CLAUDE.md</button> : <span>CLAUDE.md</span>}</td>
+            <td className="hook">Your instructions and preferences for every project</td>
+            <td className="state">{user ? formatBytes(user.sizeBytes) : <span className="help-text" title={p.userFile}>not created</span>}</td>
+          </tr>
+          {present.filter((n) => n.kind !== 'user').map((n) => (
+            <tr key={n.file}>
+              <td><button type="button" className="linkish" onClick={() => ctx.onFocus({ project: p.dirName, file: n.file })}>{n.file}</button></td>
+              <td className="hook">{noteDescription(n) ?? GLOBAL_KIND_LABEL[n.kind ?? 'rule']}</td>
+              <td className="state">{formatBytes(n.sizeBytes)}</td>
+            </tr>
+          ))}
+          {!present.some((n) => n.kind === 'rule') && (
+            <tr className="absent">
+              <td><span>rules/*.md</span></td>
+              <td className="hook">Topic-specific instructions, one Markdown file each</td>
+              <td className="state"><span className="help-text" title={p.rulesDir}>none</span></td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      {!present.length && (
+        <p className="help-text">
+          Nothing global exists on this machine yet. Create <span className="mono">{p.userFile}</span>, or ask Claude to “remember this for all projects”, and it will show up here.
+        </p>
+      )}
+      <h4 className="mem-section">History</h4>
+      <History entries={history} ctx={ctx} emptyText="No transcript on this machine records a read or change of a global memory file." />
     </article>
   );
 }
@@ -305,12 +359,22 @@ function Overview({ report, ctx }: { report: MemoryReport; ctx: Ctx }) {
     .flatMap((p) => [...p.notes, ...(p.index ? [p.index as MemoryIndex] : [])].flatMap((n) => n.history.filter((h) => CHANGE_OPS.has(h.op)).map((h) => ({ p, n, h }))))
     .sort((a, b) => (b.h.ts || '').localeCompare(a.h.ts || ''));
   const writers = new Set(changes.map((c) => c.h.sessionId)).size;
+  const global = report.projects.find((p) => p.scope === 'global');
+  const globalFiles = global?.notes.filter((n) => !n.missing).length ?? 0;
   return (
     <article className="mem-note">
       <header className="mem-note-head"><h2>Memory</h2></header>
-      <p className="mem-desc">What Claude has chosen to remember across sessions, per project, and which sessions wrote it.</p>
+      <p className="mem-desc">
+        What Claude remembers across sessions and which sessions wrote it. Auto-memory is kept per project; the only memory shared by every project is the
+        global <span className="mono">CLAUDE.md</span> and rules files, which you write rather than Claude building them up.
+      </p>
       <div className="stats mem-stats">
-        <div className="stat"><span className="stat-k">Projects</span><span className="stat-v">{report.projects.length}</span></div>
+        <div className="stat"><span className="stat-k">Projects</span><span className="stat-v">{report.projects.filter((p) => p.scope !== 'global').length}</span></div>
+        {global && (
+          <button type="button" className="stat stat-btn" onClick={() => ctx.onFocus({ project: global.dirName })} title="Files loaded in every project">
+            <span className="stat-k">Global files</span><span className="stat-v">{globalFiles}</span><span className="stat-sub">{globalFiles ? 'loaded in every project' : 'none yet'}</span>
+          </button>
+        )}
         <div className="stat"><span className="stat-k">Notes</span><span className="stat-v">{notes.length}</span><span className="stat-sub">{[...byType].sort((a, b) => b[1] - a[1]).map(([t, c]) => `${c} ${t}`).join(' · ')}</span></div>
         <div className="stat"><span className="stat-k">Changes recorded</span><span className="stat-v">{changes.length}</span><span className="stat-sub">by {plural(writers, 'session')}</span></div>
       </div>
@@ -370,6 +434,7 @@ export function MemoryView({ byId, changeKey, focus, onFocus, onOpenSession }: P
       </div>
     );
   else if (note && project) detail = <NoteDetail p={project} note={note} ctx={ctx} />;
+  else if (project?.scope === 'global') detail = <GlobalDetail p={project} ctx={ctx} />;
   else if (project) detail = <IndexDetail p={project} ctx={ctx} />;
   else detail = <Overview report={report} ctx={ctx} />;
 
@@ -404,8 +469,8 @@ export function MemoryView({ byId, changeKey, focus, onFocus, onOpenSession }: P
                   >
                     <Icon name="chevron" size={10} className={isCollapsed ? '' : 'rot90'} />
                   </button>
-                  <button type="button" className="mem-nav-pname" onClick={() => onFocus({ project: p.dirName })} title={p.project.path}>
-                    <span className="t">{p.project.name}</span>
+                  <button type="button" className="mem-nav-pname" onClick={() => onFocus({ project: p.dirName })} title={p.scope === 'global' ? `${p.project.path} — loaded in every project` : p.project.path}>
+                    <span className="t">{p.scope === 'global' ? 'Global · all projects' : p.project.name}</span>
                     <span className="n">{p.notes.filter((n) => !n.missing).length}</span>
                   </button>
                 </div>

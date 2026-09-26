@@ -53,8 +53,16 @@ export function noteType(n: MemoryNote): string | null {
   return str(meta(n).type) ?? str(n.frontmatter?.type);
 }
 export function noteName(n: MemoryNote): string {
+  // Global files are known by their path (CLAUDE.md, rules/testing.md), not a slug.
+  if (n.kind) return str(n.frontmatter?.name) ?? n.file;
   return str(n.frontmatter?.name) ?? n.file.replace(/\.md$/, '');
 }
+
+export const GLOBAL_KIND_LABEL: Record<NonNullable<MemoryNote['kind']>, string> = {
+  user: 'user instructions',
+  rule: 'user rule',
+  managed: 'managed policy',
+};
 export function noteDescription(n: MemoryNote): string | null {
   return str(n.frontmatter?.description);
 }

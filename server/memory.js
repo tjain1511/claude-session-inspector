@@ -109,3 +109,37 @@ export function readMemoryDirs(projectsDir) {
   }
   return out;
 }
+
+// Enterprise-managed instructions that Claude Code loads ahead of the user's own, when an admin installs them.
+const MANAGED_POLICY = process.platform === 'darwin' ? '/Library/Application Support/ClaudeCode/CLAUDE.md' : process.platform === 'win32' ? 'C:\\Program Files\\ClaudeCode\\CLAUDE.md' : '/etc/claude-code/CLAUDE.md';
+
+/**
+ * Global memory, loaded into every session in every project: <claudeDir>/CLAUDE.md, the
+ * <claudeDir>/rules/**\/*.md files, and the managed policy file if one is installed.
+ * Unlike project auto-memory these are instructions the user (or Claude, when asked) writes by hand.
+ */
+export function readGlobalMemory(claudeDir) {
+  const notes = [];
+  const user = readNote(claudeDir, 'CLAUDE.md');
+  if (user) notes.push({ ...user, kind: 'user' });
+  const walk = (rel, depth) => {
+    let ents;
+    try {
+      ents = fs.readdirSync(path.join(claudeDir, rel), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const d of ents.sort((a, b) => a.name.localeCompare(b.name))) {
+      const r = `${rel}/${d.name}`;
+      if (d.isDirectory() && depth < 4) walk(r, depth + 1);
+      else if (d.name.endsWith('.md')) {
+        const n = readNote(claudeDir, r);
+        if (n) notes.push({ ...n, kind: 'rule' });
+      }
+    }
+  };
+  walk('rules', 0);
+  const managed = readNote(path.dirname(MANAGED_POLICY), path.basename(MANAGED_POLICY));
+  if (managed) notes.push({ ...managed, file: 'managed/CLAUDE.md', kind: 'managed' });
+  return { dir: claudeDir, notes, userFile: path.join(claudeDir, 'CLAUDE.md'), rulesDir: path.join(claudeDir, 'rules') };
+}
