@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Local filesystem bridge for the Claude Session Viewer.
+// Local filesystem bridge for the Claude Session Inspector.
 //
 // Security model:
 //  - Binds to 127.0.0.1 only. Never listens on other interfaces.
@@ -28,7 +28,10 @@ const argValue = (flag) => {
   const i = args.indexOf(flag);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const PORT = Number(argValue('--port') || process.env.PORT || 4477);
+const PORT_PINNED = !!(argValue('--port') || process.env.PORT);
+// Without an explicit port, a busy default steps up to the next free one (e.g. a second npx run).
+let PORT = Number(argValue('--port') || process.env.PORT || 4477);
+const PORT_TRIES = 10;
 const DEV = args.includes('--dev');
 const NO_OPEN = args.includes('--no-open') || DEV;
 const CLI_DIR = argValue('--dir');
@@ -78,6 +81,8 @@ async function initSource() {
       broadcast({ type: 'sessions', updated, removed: change.removed });
     } else if (change.type === 'live') {
       broadcast({ type: 'live', sessions: source.listSessions().filter((s) => s.live).map((s) => ({ id: s.id, live: s.live })) });
+    } else if (change.type === 'memory') {
+      broadcast({ type: 'memory' });
     }
   });
 }
@@ -262,6 +267,8 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (resource === 'memory' && req.method === 'GET') return send(res, 200, requireSource().memoryReport());
+
   if (resource === 'search' && req.method === 'GET') {
     const src = requireSource();
     const query = String(q.get('q') || '').slice(0, 500);
@@ -362,9 +369,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', async () => {
+server.on('listening', async () => {
   const urlStr = `http://127.0.0.1:${PORT}/`;
-  log(`Claude Session Viewer v${VERSION} listening on ${urlStr}${DEV ? ' (dev)' : ''}`);
+  log(`Claude Session Inspector v${VERSION} listening on ${urlStr}${DEV ? ' (dev)' : ''}`);
   await initSource();
   if (source) log(`data dir: ${tildify(source.claudeDir)}`);
   else log(`no data directory: ${indexState.error}`);
@@ -376,11 +383,18 @@ server.listen(PORT, '127.0.0.1', async () => {
 
 server.on('error', (e) => {
   if (e.code === 'EADDRINUSE') {
+    if (!PORT_PINNED && PORT < 4477 + PORT_TRIES - 1) {
+      PORT += 1;
+      server.listen(PORT, '127.0.0.1');
+      return;
+    }
     console.error(`Port ${PORT} is already in use. Start with --port <n> to pick another.`);
     process.exit(1);
   }
   throw e;
 });
+
+server.listen(PORT, '127.0.0.1');
 
 process.on('SIGINT', () => {
   unwatch();

@@ -123,7 +123,7 @@ export function SessionList({ sessions, selectedId, onSelect, onRename, onClearN
         {sessions.length === 0 && <div style={{ padding: 20, color: 'var(--text-3)', fontSize: 12, textAlign: 'center' }}>No sessions match.</div>}
         {groups.map((g) => (
           <div key={g.label}>
-            <div className="session-group">{g.label}</div>
+            <div className="session-group"><span>{g.label}</span><span className="n">{g.items.length}</span></div>
             {g.items.map(({ s, idx }) => (
               <SessionItem
                 key={s.id}

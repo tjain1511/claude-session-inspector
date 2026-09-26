@@ -4,9 +4,19 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 export const APP_HOME =
-  process.env.CLAUDE_SESSION_VIEWER_HOME || path.join(os.homedir(), '.claude-session-viewer');
+  process.env.CLAUDE_SESSION_INSPECTOR_HOME || path.join(os.homedir(), '.claude-session-inspector');
+
+// Home used before the rename to claude-session-inspector; its names and settings are carried over once.
+const LEGACY_HOME = path.join(os.homedir(), '.claude-session-viewer');
 
 export function ensureAppHome() {
+  if (!process.env.CLAUDE_SESSION_INSPECTOR_HOME && !fs.existsSync(APP_HOME) && fs.existsSync(LEGACY_HOME)) {
+    try {
+      fs.renameSync(LEGACY_HOME, APP_HOME);
+    } catch {
+      // Leave the old folder alone and start fresh rather than fail to launch.
+    }
+  }
   fs.mkdirSync(path.join(APP_HOME, 'cache'), { recursive: true });
   return APP_HOME;
 }

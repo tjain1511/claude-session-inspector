@@ -20,7 +20,7 @@ function Row({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) 
 export function MetadataDrawer({ session: s, onClose, onOpenSession }: { session: SessionSummary; onClose: () => void; onOpenSession: (id: string) => void }) {
   const c = s.counts;
   return (
-    <Modal variant="drawer" title="Session metadata" subtitle={s.id} onClose={onClose} actions={<CopyButton text={prettyJson(s)} label="Copy JSON" small={false} />}>
+    <Modal variant="drawer" title="Session details" subtitle={s.id} onClose={onClose} actions={<CopyButton text={prettyJson(s)} label="Copy JSON" small={false} />}>
       <h4>Identity</h4>
       <div className="kv">
         <Row k="session id" v={s.id} mono />

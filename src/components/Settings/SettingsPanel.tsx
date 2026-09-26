@@ -29,7 +29,7 @@ export function SettingsPanel({ status, onClose, onChooseDir }: Props) {
           Session directory
           <small>Currently reading {status?.projectsDir || '—'}. Leave empty for automatic discovery.</small>
         </div>
-        <div className="full" style={{ display: 'flex', gap: 6 }}>
+        <div className="full dir-row">
           <input className="input" value={dir} placeholder={status?.candidates.find((c) => c.usable)?.path || '~/.claude'} onChange={(e) => setDir(e.target.value)} aria-label="Session directory" />
           <button type="button" className="btn" disabled={busy} onClick={() => void apply(dir.trim() || null)}>Apply</button>
         </div>
@@ -38,14 +38,14 @@ export function SettingsPanel({ status, onClose, onChooseDir }: Props) {
         <div className="lbl">Watch for new sessions<small>Keeps the list and open session updated as Claude writes to disk.</small></div>
         <label className="toggle"><input type="checkbox" checked={s.watch} onChange={(e) => update({ watch: e.target.checked })} /></label>
 
-        <div className="lbl">Automatically open most recent session<small>On launch, open the newest session instead of the empty view.</small></div>
-        <label className="toggle"><input type="checkbox" checked={s.autoOpenRecent} onChange={(e) => update({ autoOpenRecent: e.target.checked })} /></label>
-
         <div className="lbl">Show thinking blocks<small>Include Claude's reasoning blocks in the timeline when present in the log.</small></div>
         <label className="toggle"><input type="checkbox" checked={s.showThinking} onChange={(e) => update({ showThinking: e.target.checked })} /></label>
 
         <div className="lbl">Show metadata events<small>Context attachments, mode changes and other housekeeping records, collapsed.</small></div>
         <label className="toggle"><input type="checkbox" checked={s.showMetadata} onChange={(e) => update({ showMetadata: e.target.checked })} /></label>
+
+        <div className="lbl">Compact tool calls<small>Successful tool calls start collapsed to one row; failures stay open.</small></div>
+        <label className="toggle"><input type="checkbox" checked={s.density === 'compact'} onChange={(e) => update({ density: e.target.checked ? 'compact' : 'comfortable' })} /></label>
 
         <div className="lbl">Tool output<small>Truncated shows the first 40 lines with "show more".</small></div>
         <div className="radio-row" role="radiogroup" aria-label="Tool output">
@@ -68,8 +68,8 @@ export function SettingsPanel({ status, onClose, onChooseDir }: Props) {
       </div>
       <h4 className="settings-h4">Pricing</h4>
       <PricingSettings />
-      <p className="help-text" style={{ marginTop: 18 }}>
-        Everything stays on this machine. Rate overrides are saved in <code>~/.claude-session-viewer/settings.json</code>. Preferences live in this browser's local storage; custom session names live in <code>~/.claude-session-viewer/metadata.json</code>. Claude's own files are never modified.
+      <p className="help-text settings-foot">
+        Everything stays on this machine. Rate overrides are saved in <code>~/.claude-session-inspector/settings.json</code>. Preferences live in this browser's local storage; custom session names live in <code>~/.claude-session-inspector/metadata.json</code>. Claude's own files are never modified.
       </p>
     </Modal>
   );

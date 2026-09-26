@@ -3,7 +3,6 @@ import { useSyncExternalStore } from 'react';
 
 export interface Settings {
   watch: boolean; // subscribe to live updates
-  autoOpenRecent: boolean;
   toolOutput: 'full' | 'truncated';
   timestamps: 'local' | 'relative';
   showMetadata: boolean; // show collapsed metadata/attachment rows in the timeline
@@ -12,12 +11,15 @@ export interface Settings {
   sidebarCollapsed: boolean;
   showOutline: boolean; // turn-by-turn outline rail in the session viewer
   theme: 'system' | 'dark' | 'light';
+  density: 'compact' | 'comfortable'; // compact: successful tool calls start collapsed to one row
+  showAgents: boolean; // expanded sub-agent panel in the session header
+  showTimeBar: boolean;
+  compressIdle: boolean; // draw long waits for the user narrow in the time bar
 }
 
 const KEY = 'csv.settings.v1';
 const DEFAULTS: Settings = {
   watch: true,
-  autoOpenRecent: false,
   toolOutput: 'truncated',
   timestamps: 'local',
   showMetadata: true,
@@ -26,6 +28,10 @@ const DEFAULTS: Settings = {
   sidebarCollapsed: false,
   showOutline: false,
   theme: 'system',
+  density: 'compact',
+  showAgents: false,
+  showTimeBar: true,
+  compressIdle: true,
 };
 
 let current: Settings = load();

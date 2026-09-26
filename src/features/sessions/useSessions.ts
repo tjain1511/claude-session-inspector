@@ -14,6 +14,8 @@ export interface SessionsState {
   error: string | null;
   connected: boolean;
   lastChange: { ids: string[]; at: number } | null;
+  /** Bumped when a memory note changes on disk. */
+  memoryAt: number;
 }
 
 export function useSessions() {
@@ -23,6 +25,7 @@ export function useSessions() {
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [lastChange, setLastChange] = useState<SessionsState['lastChange']>(null);
+  const [memoryAt, setMemoryAt] = useState(0);
   const [settings] = useSettings();
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -94,6 +97,8 @@ export function useSessions() {
         } else if (ev.type === 'live') {
           const liveMap = new Map(ev.sessions.map((s) => [s.id, s.live]));
           setSessions((prev) => prev.map((s) => ({ ...s, live: liveMap.get(s.id) ?? null })));
+        } else if (ev.type === 'memory') {
+          setMemoryAt(Date.now());
         } else if (ev.type === 'indexing' && ev.status === 'ready') {
           void loadRef.current();
         }
@@ -176,6 +181,7 @@ export function useSessions() {
     error,
     connected,
     lastChange,
+    memoryAt,
     query,
     setQuery,
     searchPending: !!query.trim() && serverHits.q !== query.trim(),

@@ -8,6 +8,8 @@ import { Filters } from '@/components/Filters/Filters';
 import { SessionList } from '@/components/SessionList/SessionList';
 import { SessionViewer } from '@/components/SessionViewer/SessionViewer';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
+import { Dashboard } from '@/components/Dashboard/Dashboard';
+import { MemoryView, type MemoryFocus } from '@/components/Memory/MemoryView';
 import { SettingsPanel } from '@/components/Settings/SettingsPanel';
 import { MetadataDrawer } from '@/components/Metadata/MetadataDrawer';
 import { ShortcutsHelp } from '@/components/common/ShortcutsHelp';
@@ -24,7 +26,11 @@ function readHash(): string | null {
 function Shell() {
   const sessions = useSessions();
   const [settings, update] = useSettings();
-  const [selectedId, setSelectedId] = useState<string | null>(readHash);
+  // Launch always lands on the overview; a leftover #session= hash is dropped.
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (location.hash) history.replaceState(null, '', location.pathname);
+    return null;
+  });
   const detail = useSessionDetail(selectedId, sessions.lastChange);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -35,10 +41,13 @@ function Shell() {
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [rawEvent, setRawEvent] = useState<SessionEvent | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
+  // What the main pane shows when no session is open.
+  const [home, setHome] = useState<'overview' | 'memory'>('overview');
+  const [memoryFocus, setMemoryFocus] = useState<MemoryFocus>({});
+  const [jumpRequest, setJumpRequest] = useState<{ sessionId: string; toolUseIds: string[]; n: number } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
-  const autoOpened = useRef(false);
 
   // Theme: data-theme on <html>; 'system' follows prefers-color-scheme.
   useEffect(() => {
@@ -59,21 +68,26 @@ function Shell() {
     history.replaceState(null, '', id ? `#session=${id}` : location.pathname);
   }, []);
 
+  const openMemory = useCallback((focus?: MemoryFocus) => {
+    if (focus) setMemoryFocus(focus);
+    setHome('memory');
+    select(null);
+  }, [select]);
+  const openSessionAt = useCallback((id: string, toolUseIds: string[]) => {
+    select(id);
+    setJumpRequest(toolUseIds.length ? { sessionId: id, toolUseIds, n: Date.now() } : null);
+  }, [select]);
+  useEffect(() => {
+    const onOpen = (e: Event) => openMemory((e as CustomEvent<MemoryFocus>).detail ?? {});
+    window.addEventListener('csv:memory', onOpen);
+    return () => window.removeEventListener('csv:memory', onOpen);
+  }, [openMemory]);
+
   useEffect(() => {
     const onHash = () => setSelectedId(readHash());
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-
-  // Auto-open most recent session once the list is loaded (setting)
-  useEffect(() => {
-    if (autoOpened.current || sessions.loading || !settings.autoOpenRecent || selectedId) return;
-    const first = sessions.sessions[0];
-    if (first) {
-      autoOpened.current = true;
-      select(first.id);
-    }
-  }, [sessions.loading, sessions.sessions, settings.autoOpenRecent, selectedId, select]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -121,14 +135,15 @@ function Shell() {
           e.preventDefault();
         } else if (e.key.toLowerCase() === 'o' && selectedId) {
           update({ showOutline: !settings.showOutline });
-        } else if (e.key.toLowerCase() === 'e' && selectedId) {
-          (document.querySelector('.toolbar .btn[title^="Expand"]') as HTMLButtonElement | null)?.click();
+        } else if (e.key.toLowerCase() === 'm') {
+          if (!selectedId && home === 'memory') setHome('overview');
+          else openMemory();
         }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [sessions, detail, selectedId, rawEvent, metadataId, findOpen, showSettings, showHelp, showIssues, settings.sidebarCollapsed, settings.showOutline, update]);
+  }, [sessions, detail, selectedId, rawEvent, metadataId, findOpen, showSettings, showHelp, showIssues, settings.sidebarCollapsed, settings.showOutline, update, home, openMemory]);
 
   // Sidebar resize
   const onResizeStart = (e: React.MouseEvent) => {
@@ -190,6 +205,12 @@ function Shell() {
         onCollapseSidebar={() => update({ sidebarCollapsed: !settings.sidebarCollapsed })}
         onHelp={() => setShowHelp(true)}
         theme={settings.theme}
+        onHome={() => {
+          setHome('overview');
+          select(null);
+        }}
+        onMemory={() => openMemory()}
+        memoryActive={!selectedId && home === 'memory'}
         onToggleTheme={() => update({ theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light' })}
       />
       <aside className="sidebar" aria-hidden={settings.sidebarCollapsed}>
@@ -252,6 +273,8 @@ function Shell() {
             setTitleEditing={setTitleEditing}
             rawEvent={rawEvent}
             setRawEvent={setRawEvent}
+            canReveal={!!st?.canReveal}
+            jumpRequest={jumpRequest}
           />
         ) : selectedId && !sessions.loading ? (
           <div className="state-panel">
@@ -261,13 +284,16 @@ function Shell() {
               <div className="actions"><button type="button" className="btn" onClick={() => select(null)}>Back to sessions</button></div>
             </div>
           </div>
+        ) : home === 'memory' ? (
+          <MemoryView
+            byId={sessions.byId}
+            changeKey={`${sessions.memoryAt}:${sessions.lastChange?.at ?? 0}`}
+            focus={memoryFocus}
+            onFocus={setMemoryFocus}
+            onOpenSession={openSessionAt}
+          />
         ) : (
-          <div className="state-panel">
-            <div className="state-card" style={{ textAlign: 'center', color: 'var(--text-2)' }}>
-              <h2 style={{ color: 'var(--text)' }}>Select a session</h2>
-              <p>Pick a session on the left to inspect its execution flow. Press <kbd>⌘</kbd> <kbd>K</kbd> to search, <kbd>?</kbd> for shortcuts.</p>
-            </div>
-          </div>
+          <Dashboard sessions={sessions.sessions} onSelect={select} />
         )}
       </main>
       {showSettings && <SettingsPanel status={st} onClose={() => setShowSettings(false)} onChooseDir={sessions.setDataDir} />}

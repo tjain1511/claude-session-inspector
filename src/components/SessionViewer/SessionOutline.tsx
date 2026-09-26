@@ -2,7 +2,7 @@
 // turn shows how long it took, how much model/tool time it burned, what went wrong and
 // which sub-agents (and models) it spawned, so a generator→critic loop or a stuck
 // retry cycle stands out at a glance. Click a turn or an agent to jump to it.
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { SessionEvent, SessionSummary, SubagentSummary } from '@/types/session';
 import { buildTurns } from '@/components/Timeline/ToolGantt';
 import { Icon } from '@/components/common/Icon';
@@ -14,9 +14,16 @@ interface Props {
   onJump: (eventId: string) => void;
   onJumpAgent: (toolUseId: string | null) => void;
   onClose: () => void;
+  activeId?: string | null; // prompt id of the turn at the top of the flow
 }
 
-export function SessionOutline({ session: s, events, onJump, onJumpAgent, onClose }: Props) {
+export function SessionOutline({ session: s, events, onJump, onJumpAgent, onClose, activeId }: Props) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!activeId) return;
+    const el = listRef.current?.querySelector(`[data-turn="${CSS.escape(activeId)}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [activeId]);
   const turns = useMemo(() => buildTurns(events, s.subagents), [events, s.subagents]);
   const agentTypes = useMemo(() => {
     const m = new Map<string, { count: number; models: Set<string> }>();
@@ -49,14 +56,14 @@ export function SessionOutline({ session: s, events, onJump, onJumpAgent, onClos
           ))}
         </div>
       )}
-      <div className="outline-list">
+      <div className="outline-list" ref={listRef}>
         {turns.map((t) => {
           const span = t.end - t.start;
           const w = Math.max(2, (span / maxSpan) * 100);
           const modelPct = span > 0 ? (t.modelMs / span) * 100 : 0;
           const toolPct = span > 0 ? (t.toolMs / span) * 100 : 0;
           return (
-            <div key={t.promptId} className={`outline-turn ${t.errors ? 'has-error' : ''}`}>
+            <div key={t.promptId} data-turn={t.promptId} className={`outline-turn ${t.errors ? 'has-error' : ''} ${activeId === t.promptId ? 'active' : ''}`} aria-current={activeId === t.promptId ? 'step' : undefined}>
               <button type="button" className="outline-turn-head" onClick={() => onJump(t.promptId)} title={t.prompt}>
                 <span className="no">{t.idx}</span>
                 <span className="prompt">{t.prompt || '(prompt)'}</span>

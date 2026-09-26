@@ -9,11 +9,14 @@ import { Icon } from '@/components/common/Icon';
 import { ToolInput } from './ToolInput';
 import { ToolResultBody } from './ToolResult';
 import { SubagentPanel } from './SubagentPanel';
-import { formatDuration } from '@/utils/format';
+import { formatDuration, modelLabel } from '@/utils/format';
+import { useSettings } from '@/features/settings/settings';
+import { usePrimaryModel } from '@/features/sessions/primaryModel';
 import { toolSummary } from '@/utils/events';
 import { prettyJson } from '@/utils/highlight';
 import { useToolDoc, openContext } from '@/components/Context/ToolDocs';
 import { firstLine } from '@/utils/events';
+import { openMemory, useMemoryByTool } from '@/utils/memory';
 
 interface Props {
   event: SessionEvent;
@@ -34,10 +37,24 @@ export function ToolCallCard({ event: e, result, sessionId, onRaw, query, forceO
   const desc = toolSummary(e.tool, e.input);
   const doc = useToolDoc(e.tool);
   const inputText = typeof e.input === 'string' ? e.input : prettyJson(e.input);
+  const [settings] = useSettings();
+  const agentMs = subagent?.startedAt && subagent.endedAt ? Date.parse(subagent.endedAt) - Date.parse(subagent.startedAt) : null;
+  const primary = usePrimaryModel();
+  const memory = useMemoryByTool().get(e.toolUseId ?? '') ?? [];
+  // Compact density: successful calls start as a single row; failures and running calls stay open.
+  const compact = settings.density === 'compact';
+  const lead = (
+    <span className={`status-glyph ${status}${status === 'pending' && live ? ' running' : ''}`} aria-label={status === 'error' ? 'failed' : status === 'success' ? 'succeeded' : live ? 'running' : 'no result'}>
+      <Icon name={status === 'error' ? 'xCircle' : status === 'success' ? 'checkCircle' : 'clock'} size={12} />
+    </span>
+  );
   return (
     <Card
       type="tool_call"
       role=""
+      lead={lead}
+      eventId={e.id}
+      defaultOpen={!compact || status === 'error' || (status === 'pending' && !!live)}
       title={
         doc ? (
           <span className="tool-title" title={doc.description ? firstLine(doc.description) : 'Deferred tool: definition not recorded'}>
@@ -53,17 +70,26 @@ export function ToolCallCard({ event: e, result, sessionId, onRaw, query, forceO
       extraClass={`status-${status}`}
       right={
         <>
+          {memory.map((m) => (
+            <button key={m.file} type="button" className="chip memory" onClick={(ev) => { ev.stopPropagation(); openMemory(m); }} title={`Open the memory note ${m.file}`}>
+              <Icon name="memory" size={10} />{m.file.replace(/\.md$/, '')}
+            </button>
+          ))}
+          {subagent && <span className="chip agent-type" title={`Sub-agent ${subagent.agentId}`}><Icon name="agent" size={10} />{subagent.agentType || 'agent'}</span>}
+          {subagent?.model && subagent.model !== primary && <span className="chip warn" title={`Ran on ${subagent.model}${primary ? ` (session: ${primary})` : ''}`}>{modelLabel(subagent.model)}</span>}
+          {subagent?.counts && <span title="Sub-agent activity">{subagent.counts.toolCalls} tools{subagent.counts.errors ? <span className="status-error"> · {subagent.counts.errors} err</span> : null}</span>}
+          {agentMs != null && <span className="agent-ran" title={`The sub-agent ran from ${subagent?.startedAt} to ${subagent?.endedAt}; the call itself returned after ${formatDuration(durationMs)}`}>ran {formatDuration(agentMs)}</span>}
           {result?.interrupted && <span className="chip warn">interrupted</span>}
           {result?.denied && <span className="chip warn" title={result.denied}>denied</span>}
           {status === 'pending' && (live ? <span className="chip warn">running…</span> : <span className="chip">no result</span>)}
           {status === 'error' && <span className="chip error">error</span>}
-          {durationMs != null && <span title="Time from tool call to result">{formatDuration(durationMs)}</span>}
+          {durationMs != null && <span className={`dur ${durationMs >= 60_000 ? 'slow' : ''}`} title="Time from tool call to result">{formatDuration(durationMs)}</span>}
           {e.caller && e.caller !== 'direct' && <span title="Caller">{e.caller}</span>}
         </>
       }
       copyText={inputText}
       onRaw={() => onRaw(e)}
-      summary={desc || '(no input)'}
+      summary={compact ? undefined : desc || '(no input)'}
     >
       <div className="tool-section">
         <div className="label">

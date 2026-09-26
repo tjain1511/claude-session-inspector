@@ -13,7 +13,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { SessionSource } from './SessionSource.js';
 import { readJsonlFrom, readRecordAt, readRecordAtLine } from './parser.js';
-import { createSummaryState, reduceRecord, summaryFromState } from './summarize.js';
+import { createSummaryState, reduceRecord, summaryFromState, memorySummary } from './summarize.js';
+import { readMemoryDirs } from '../memory.js';
 import { normalizeRecords } from './normalize.js';
 import { createContextState, reduceContext, contextFromState } from './context.js';
 import { mergeRates, estimateCost, checkRates, FITTED_MODELS } from '../pricing.js';
@@ -243,7 +244,9 @@ export class ClaudeSessionSource extends SessionSource {
       model: s.state ? summaryFromState(s.state).model : null,
       sizeBytes: s.size ?? 0,
       error: s.error || null,
+      memory: memorySummary(this.verifiedMemoryOps(s.state?.memoryOps)),
     }));
+    base.memory = memorySummary(this.verifiedMemoryOps(entry.state?.memoryOps));
     return {
       ...base,
       estimate: estimateCost(base.usageByModel, subagents, this.rates()),
@@ -270,6 +273,59 @@ export class ClaudeSessionSource extends SessionSource {
     const records = [];
     for (const e of this.index.values()) if (e.state?.cost?.modelUsage) records.push(e.state.cost.modelUsage);
     return { rates, overrides: this.store.getSettings().rates || {}, accuracy: checkRates(records, rates), recordedSessions: records.length, fitted: [...FITTED_MODELS] };
+  }
+
+  /** Drop ops on bare note names guessed from a shell command unless that note exists on disk. */
+  verifiedMemoryOps(ops = []) {
+    return ops.filter((o) => !o.inferred || safeStat(path.join(this.projectsDir, o.project, 'memory', o.file))?.isFile());
+  }
+
+  /**
+   * Every project's memory notes, each with the history of transcript records that read,
+   * wrote, edited, deleted or loaded it. Notes that only exist in history (deleted since)
+   * are included with `missing: true` so their last known content can still be inspected.
+   */
+  memoryReport() {
+    const dirs = readMemoryDirs(this.projectsDir);
+    const history = new Map(); // `${project}/${file}` -> ops
+    const cwdOf = new Map();
+    const direct = new Set();
+    for (const e of this.index.values()) for (const st of [e.state, ...[...e.subagents.values()].map((x) => x.state)]) for (const op of st?.memoryOps || []) if (!op.inferred) direct.add(`${op.project}/${op.file}`);
+    const push = (op, sessionId, agentId) => {
+      const k = `${op.project}/${op.file}`;
+      // A name guessed from `cd …/memory && …` counts only for a note that exists or was addressed by full path elsewhere.
+      if (op.inferred && !direct.has(k) && !safeStat(path.join(this.projectsDir, op.project, 'memory', op.file))?.isFile()) return;
+      if (!history.has(k)) history.set(k, []);
+      history.get(k).push({ ...op, project: undefined, file: undefined, sessionId, agentId });
+    };
+    for (const e of this.index.values()) {
+      if (e.state?.cwd && !cwdOf.has(e.projectDirName)) cwdOf.set(e.projectDirName, e.state.cwd);
+      for (const op of e.state?.memoryOps || []) push(op, e.id, null);
+      for (const sub of e.subagents.values()) for (const op of sub.state?.memoryOps || []) push(op, e.id, sub.agentId);
+    }
+    const byTs = (a, b) => (a.ts || '').localeCompare(b.ts || '');
+    const projects = new Map(dirs.map((d) => [d.dirName, d]));
+    for (const k of history.keys()) {
+      const [dirName] = k.split('/');
+      if (!projects.has(dirName)) projects.set(dirName, { dirName, dir: path.join(this.projectsDir, dirName, 'memory'), notes: [], index: null, missingDir: true });
+    }
+    const out = [];
+    for (const d of projects.values()) {
+      const onDisk = new Set(d.notes.map((n) => n.file));
+      const notes = d.notes.map((n) => ({ ...n, path: tildify(n.path), history: (history.get(`${d.dirName}/${n.file}`) || []).sort(byTs) }));
+      for (const [k, ops] of history) {
+        const [dirName, file] = k.split('/');
+        if (dirName !== d.dirName || onDisk.has(file) || file === 'MEMORY.md') continue;
+        notes.push({ file, path: tildify(path.join(d.dir, file)), missing: true, sizeBytes: 0, mtime: null, body: '', frontmatter: null, frontmatterRaw: null, links: [], history: ops.sort(byTs) });
+      }
+      const index = d.index ? { ...d.index, path: tildify(d.index.path), history: (history.get(`${d.dirName}/MEMORY.md`) || []).sort(byTs) } : null;
+      const cwd = cwdOf.get(d.dirName) || decodeProjectDirName(d.dirName);
+      if (!notes.length && !index) continue;
+      out.push({ dirName: d.dirName, dir: tildify(d.dir), missingDir: !!d.missingDir, project: { name: path.basename(cwd) || cwd, path: tildify(cwd) }, notes, index });
+    }
+    const last = (p) => [p.index?.mtime, ...p.notes.map((n) => n.mtime || n.history.at(-1)?.ts)].filter(Boolean).sort().at(-1) || '';
+    out.sort((a, b) => last(b).localeCompare(last(a)));
+    return { memoryDirName: 'memory', projects: out };
   }
 
   listSessions() {
@@ -446,6 +502,7 @@ export class ClaudeSessionSource extends SessionSource {
     const pending = new Set();
     let timer = null;
     let registryTimer = null;
+    let memoryTimer = null;
     const flush = () => {
       timer = null;
       const updated = new Set();
@@ -466,6 +523,10 @@ export class ClaudeSessionSource extends SessionSource {
       const w = fs.watch(this.projectsDir, { recursive: true }, (_ev, filename) => {
         if (!filename) return;
         const rel = String(filename);
+        if (/(^|[\\/])memory[\\/][^\\/]+\.md$/.test(rel)) {
+          if (!memoryTimer) memoryTimer = setTimeout(() => { memoryTimer = null; onChange({ type: 'memory' }); }, 300);
+          return;
+        }
         if (!rel.endsWith('.jsonl')) return;
         pending.add(rel);
         if (!timer) timer = setTimeout(flush, 300);
@@ -500,6 +561,7 @@ export class ClaudeSessionSource extends SessionSource {
     return () => {
       for (const w of watchers) try { w.close(); } catch { /* ignore */ }
       if (timer) clearTimeout(timer);
+      if (memoryTimer) clearTimeout(memoryTimer);
     };
   }
 }

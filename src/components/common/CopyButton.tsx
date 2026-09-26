@@ -1,7 +1,7 @@
 import { useCopy } from '@/hooks/useCopy';
 import { Icon } from './Icon';
 
-export function CopyButton({ text, label = 'Copy', small = true, getText }: { text?: string; label?: string; small?: boolean; getText?: () => string }) {
+export function CopyButton({ text, label = 'Copy', small = true, getText, icon = 'copy' }: { text?: string; label?: string; small?: boolean; getText?: () => string; icon?: string }) {
   const { copied, copy } = useCopy();
   return (
     <button
@@ -14,7 +14,7 @@ export function CopyButton({ text, label = 'Copy', small = true, getText }: { te
         void copy(getText ? getText() : text || '');
       }}
     >
-      <Icon name={copied ? 'check' : 'copy'} size={12} />
+      <Icon name={copied ? 'check' : icon} size={12} />
       {!small && (copied ? 'Copied' : label)}
     </button>
   );

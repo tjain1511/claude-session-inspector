@@ -1,12 +1,14 @@
 {
-  "name": "claude-session-viewer",
+  "name": "claude-session-inspector",
   "version": "0.1.0",
   "description": "Local, offline viewer for Claude Code sessions stored on this machine.",
-  "private": true,
   "type": "module",
-  "bin": { "claude-session-viewer": "./server/index.js" },
+  "bin": { "claude-session-inspector": "./server/index.js" },
+  "files": ["server", "!server/test", "dist"],
+  "keywords": ["claude", "claude-code", "sessions", "transcripts", "viewer", "agents", "devtools"],
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "dev": "node scripts/build.mjs --watch & node server/index.js --dev; wait",
     "start": "node server/index.js",
     "typecheck": "tsc --noEmit",

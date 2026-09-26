@@ -133,6 +133,7 @@ export interface SubagentSummary {
   usage: { input: number; output: number; cacheRead: number; cacheCreate: number; thinking: number } | null;
   sizeBytes: number;
   error: string | null;
+  memory?: MemoryOpSummary[];
 }
 
 export interface SessionCounts {
@@ -188,6 +189,7 @@ export interface SessionSummary {
   permissionModes: string[];
   hasImages: boolean;
   inFileAgentIds: string[];
+  memory?: MemoryOpSummary[];
   project: { name: string; path: string; raw: string; dirName: string };
   file: { path: string; sizeBytes: number; mtime: string | null; partialWrite: boolean };
   parseErrors: number;
@@ -263,7 +265,71 @@ export type ServerEvent =
   | { type: 'hello'; status: string }
   | { type: 'indexing'; status: string }
   | { type: 'sessions'; updated: SessionSummary[]; removed: string[] }
-  | { type: 'live'; sessions: { id: string; live: SessionSummary['live'] }[] };
+  | { type: 'live'; sessions: { id: string; live: SessionSummary['live'] }[] }
+  | { type: 'memory' };
+
+// ---------- auto-memory (<projects>/<encoded-cwd>/memory/*.md) ----------
+
+export type MemoryOpKind = 'write' | 'append' | 'edit' | 'delete' | 'read' | 'loaded';
+
+/** One transcript record that touched a memory file, as listed on a session summary. */
+export interface MemoryOpSummary {
+  op: MemoryOpKind;
+  project: string;
+  file: string;
+  ts: string | null;
+  tool: string | null;
+  toolUseId: string | null;
+  failed: boolean;
+  inferred?: boolean;
+}
+
+/** A memory op in a note's history, with what it wrote when the record shows it. */
+export interface MemoryHistoryEntry {
+  op: MemoryOpKind;
+  ts: string | null;
+  tool: string | null;
+  toolUseId: string | null;
+  failed?: boolean;
+  sidechain?: boolean;
+  sessionId: string;
+  agentId: string | null;
+  content?: string;
+  edits?: { old: string; new: string }[];
+  command?: string;
+}
+
+export interface MemoryNote {
+  file: string;
+  path: string;
+  sizeBytes: number;
+  mtime: string | null;
+  truncated?: boolean;
+  missing?: boolean;
+  error?: string;
+  frontmatter: Record<string, unknown> | null;
+  frontmatterRaw: string | null;
+  body: string;
+  links: string[];
+  history: MemoryHistoryEntry[];
+}
+
+export interface MemoryIndex extends MemoryNote {
+  entries: { title: string; file: string; hook: string }[];
+}
+
+export interface MemoryProject {
+  dirName: string;
+  dir: string;
+  missingDir: boolean;
+  project: { name: string; path: string };
+  notes: MemoryNote[];
+  index: MemoryIndex | null;
+}
+
+export interface MemoryReport {
+  projects: MemoryProject[];
+}
 
 // ---------- model context (from attachment records) ----------
 

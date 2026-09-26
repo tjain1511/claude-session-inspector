@@ -2,7 +2,7 @@
 import { CodeBlock } from '@/components/CodeBlock/CodeBlock';
 import { langFor, prettyJson } from '@/utils/highlight';
 
-function DiffView({ oldText, newText, file }: { oldText: string; newText: string; file?: string }) {
+export function DiffView({ oldText, newText, file }: { oldText: string; newText: string; file?: string }) {
   const oldLines = oldText.split('\n');
   const newLines = newText.split('\n');
   return (

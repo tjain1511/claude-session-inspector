@@ -1,4 +1,4 @@
-# Claude Session Viewer
+# Claude Session Inspector
 
 A local, offline "DevTools" for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) sessions.
 It reads the transcripts Claude Code already keeps on your machine and shows every session as an
@@ -11,12 +11,20 @@ dependencies beyond Node.js.
 ## Run it
 
 ```sh
-npm install     # dev-only: esbuild, TypeScript, React (bundled into dist/ at build time)
-npm run build
-npm start       # opens http://127.0.0.1:4477 in your browser
+npx claude-session-inspector    # opens http://127.0.0.1:4477 in your browser
 ```
 
-Options: `npm start -- --port 5000`, `--dir /path/to/.claude`, `--no-open`.
+Requires Node.js 20+. Options: `--port 5000`, `--dir /path/to/.claude`, `--no-open`.
+If port 4477 is busy and no port was given, the next free port is used.
+
+From a checkout:
+
+```sh
+npm install     # dev-only: esbuild, TypeScript, React (bundled into dist/ at build time)
+npm run build
+npm start
+```
+
 For development, `npm run dev` rebuilds on change and serves the same bundle.
 
 ## How it works
@@ -40,6 +48,7 @@ Claude Code (2.1.x) writes one JSONL file per session:
 <configDir>/projects/<encoded-cwd>/<session-uuid>/subagents/    agent-<id>.jsonl + .meta.json
 <configDir>/projects/<encoded-cwd>/<session-uuid>/tool-results/ large tool outputs persisted to disk
 <configDir>/sessions/<pid>.json                                 registry of running Claude processes
+<configDir>/projects/<encoded-cwd>/memory/*.md                  auto-memory notes; MEMORY.md is the index
 ```
 
 `<configDir>` is `$CLAUDE_CONFIG_DIR` or `~/.claude`. The viewer checks those plus a few OS-specific
@@ -59,9 +68,21 @@ ToolSearch), `agent_listing_delta`, `skill_listing`, `mcp_instructions_delta`, `
 `command_permissions`. The Context view reads exactly these; sessions from older versions show what
 was recorded and say what was not.
 
+### Memory
+
+The Memory view (header button or `M`) shows each project's auto-memory: every note with its front
+matter (name, description, type, origin session), the rendered body with `[[links]]` and backlinks,
+whether MEMORY.md lists it, and its history — every transcript record that wrote, edited, appended,
+deleted, read or loaded it, with what was written and a jump to that tool call. Changes come from
+`Write`/`Edit`/`MultiEdit`/`Read` calls on a memory path and from shell commands that touch one
+(redirections, heredocs, `sed -i`, scripts); a note named only by its bare file name inside a
+command that `cd`s into a memory folder is counted when that note exists. Notes deleted since keep
+their history. Memory tool calls carry a chip in the session flow, and sessions that changed memory
+show a Memory stat.
+
 ### What it never does
 
-- Modify Claude's files. Custom names live in `~/.claude-session-viewer/metadata.json`.
+- Modify Claude's files. Custom names live in `~/.claude-session-inspector/metadata.json`.
 - Expose the filesystem to the UI. The API takes session/agent ids only; every path is resolved from
   the index. Ids are validated; `..` never reaches the disk.
 - Accept requests from other origins. The server binds to 127.0.0.1, checks `Host`/`Origin`, and
@@ -73,6 +94,20 @@ was recorded and say what was not.
 
 ## Features
 
+- Overview landing page: sessions running now, sessions with errors, most expensive sessions, cost per
+  project and a 14-day activity chart (today / 7 / 30 days)
+- Session header: one strip of key numbers (model, duration, turns, tool calls, errors, tokens with cache-hit
+  rate, cost, sub-agents); clicking Errors filters the flow, Cost opens the breakdown, Sub-agents opens a
+  sortable list of every sub-agent with its model, tools, errors, run time and position on the session's time axis
+- Flow filters (All / Messages / Tools / Errors, plus one tool) that keep user prompts as anchors, and an
+  error navigator (`[` / `]`) that walks every failed tool call and API error
+- Compact density: successful tool calls start as one row with a status glyph and duration; failures and
+  running calls stay open. Async Agent calls show how long the sub-agent actually ran
+- Long prompts and responses are clipped with "show full", and `<pasted_content>` blocks collapse into
+  their own section
+- Idle-compressed time bar: long waits for the user are drawn narrow (hatched) so the working time is readable
+- Outline rail follows the scroll position; links to individual events (`#session=…&event=…`) from any card;
+  session menu with copy ID / link / `claude --resume` command
 - Session browser grouped by day with project, model, message/tool/error counts, duration, live status
 - Full-text search across prompts, responses, tool names, inputs and outputs (server-side digest,
   ~10 ms for 200 sessions), plus instant local matching on titles and paths
@@ -110,8 +145,8 @@ was recorded and say what was not.
 - Outline rail (O): one row per user turn with duration split (model/tool), calls, tokens, errors and
   the sub-agents it spawned, so long multi-agent runs and generator/critic loops are navigable
 - Collapsible session list (⌘B or the header button)
-- Keyboard: ⌘K search, ⌘B toggle list, ⌘R refresh, ⌘F find in session, ↑/↓/Enter/F2 in the list, J/K/E/I in the
-  timeline, Esc closes things, `?` shows the full list
+- Keyboard: ⌘K search, ⌘B toggle list, ⌘R refresh, ⌘F find in session, ↑/↓/Enter/F2 in the list, 1/2/3 switch
+  views, J/K events, [/] errors, E expand/collapse, O outline, I details, Esc closes things, `?` shows the full list
 
 ## Layout
 
@@ -119,7 +154,7 @@ was recorded and say what was not.
 server/                     Node bridge (ESM, no build step)
   index.js                  HTTP server, security checks, API routes, SSE
   discovery.js              locate the Claude data directory
-  store.js                  custom names + server settings (~/.claude-session-viewer)
+  store.js                  custom names + server settings (~/.claude-session-inspector)
   pricing.js                $/MTok rate table, cost estimates, rate verification against cost-state
   session-source/
     SessionSource.js        interface

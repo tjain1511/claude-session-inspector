@@ -18,9 +18,12 @@ interface Props {
   onHelp: () => void;
   theme: 'system' | 'dark' | 'light';
   onToggleTheme: () => void;
+  onHome: () => void;
+  onMemory: () => void;
+  memoryActive: boolean;
 }
 
-export function Header({ version, connected, watching, indexing, loaded, total, issues, onRefresh, onSettings, onIssues, onToggleSidebar, sidebarCollapsed, onCollapseSidebar, onHelp, theme, onToggleTheme }: Props) {
+export function Header({ version, connected, watching, indexing, loaded, total, issues, onRefresh, onSettings, onIssues, onToggleSidebar, sidebarCollapsed, onCollapseSidebar, onHelp, theme, onToggleTheme, onHome, onMemory, memoryActive }: Props) {
   return (
     <header className="header">
       <div className="brand">
@@ -30,17 +33,19 @@ export function Header({ version, connected, watching, indexing, loaded, total, 
         <button type="button" className={`btn icon ghost wide-only ${sidebarCollapsed ? 'active' : ''}`} onClick={onCollapseSidebar} aria-label={sidebarCollapsed ? 'Show session list' : 'Hide session list'} aria-pressed={sidebarCollapsed} title={`${sidebarCollapsed ? 'Show' : 'Hide'} session list (${MOD}+B)`}>
           <Icon name="sidebar" />
         </button>
-        <span className="dot" aria-hidden="true" />
-        <span>Claude Session Viewer</span>
+        <button type="button" className="brand-home" onClick={onHome} title="Overview of all sessions">
+          <span className="logo" aria-hidden="true"><Icon name="pulse" size={12} /></span>
+          <span>Session Inspector</span>
+        </button>
         {version && <span className="ver">v{version}</span>}
       </div>
       <div className="status-line">
-        {indexing ? (
-          <span>Indexing…</span>
-        ) : total > 0 ? (
-          <span>
-            {loaded} of {total} sessions loaded
+        {indexing || (total > 0 && loaded < total) ? (
+          <span className="indexing" title="Reading transcripts">
+            <span className="spinner" aria-hidden="true" /> Indexing{total ? ` ${loaded} / ${total}` : '…'}
           </span>
+        ) : total > 0 ? (
+          <span title={`${loaded} of ${total} sessions loaded`}>{total.toLocaleString()} sessions</span>
         ) : null}
         {issues > 0 && (
           <button type="button" className="chip warn" onClick={onIssues} title="View parsing issues">
@@ -55,11 +60,14 @@ export function Header({ version, connected, watching, indexing, loaded, total, 
         )}
       </div>
       <div className="spacer" />
-      <button type="button" className="btn ghost" onClick={onHelp} title="Keyboard shortcuts (?)">
-        <kbd>?</kbd>
+      <button type="button" className={`btn ghost header-nav ${memoryActive ? 'active' : ''}`} onClick={onMemory} aria-pressed={memoryActive} title="What Claude remembers across sessions (M)">
+        <Icon name="memory" /> <span>Memory</span>
       </button>
-      <button type="button" className="btn ghost" onClick={onRefresh} title={`Refresh sessions (${MOD}+R)`}>
-        <Icon name="refresh" /> Refresh
+      <button type="button" className="btn ghost icon" onClick={onHelp} title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
+        <Icon name="keyboard" />
+      </button>
+      <button type="button" className="btn ghost icon" onClick={onRefresh} title={`Rescan sessions (${MOD}+R)`} aria-label="Rescan sessions">
+        <Icon name="refresh" />
       </button>
       <button type="button" className="btn icon ghost" onClick={onToggleTheme} title={`Switch theme (currently ${theme})`} aria-label="Toggle light/dark theme">
         <Icon name="theme" />

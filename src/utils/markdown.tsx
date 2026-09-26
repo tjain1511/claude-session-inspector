@@ -84,29 +84,33 @@ function parseBlocks(src: string): Block[] {
   return blocks;
 }
 
-/** Inline: `code`, **bold**, *em*, [text](url), autolinks. Everything else literal. */
-export function inline(text: string, keyBase = 0): ReactNode[] {
+/** Renders a `[[slug]]` wiki link (memory notes); without one the brackets stay literal. */
+export type WikiLink = (slug: string, key: number) => ReactNode;
+
+/** Inline: `code`, **bold**, *em*, [text](url), [[wiki]], autolinks. Everything else literal. */
+export function inline(text: string, keyBase = 0, wiki?: WikiLink): ReactNode[] {
   const out: ReactNode[] = [];
-  const re = /(`+)([\s\S]*?)\1|\*\*([^*]+)\*\*|__([^_]+)__|(?<![\w*])\*([^*\n]+)\*(?![\w*])|(?<![\w_])_([^_\n]+)_(?![\w_])|\[([^\]]+)\]\(([^)\s]+)\)|~~([^~]+)~~/g;
+  const re = /(`+)([\s\S]*?)\1|\*\*([^*]+)\*\*|__([^_]+)__|(?<![\w*])\*([^*\n]+)\*(?![\w*])|(?<![\w_])_([^_\n]+)_(?![\w_])|\[\[([^\]\n]+)\]\]|\[([^\]]+)\]\(([^)\s]+)\)|~~([^~]+)~~/g;
   let last = 0;
   let m: RegExpExecArray | null;
   let k = keyBase;
   while ((m = re.exec(text))) {
     if (m.index > last) out.push(text.slice(last, m.index));
     if (m[2] !== undefined) out.push(<code key={k++} className="md-code">{m[2]}</code>);
-    else if (m[3] !== undefined) out.push(<strong key={k++}>{inline(m[3], k * 100)}</strong>);
-    else if (m[4] !== undefined) out.push(<strong key={k++}>{inline(m[4], k * 100)}</strong>);
-    else if (m[5] !== undefined) out.push(<em key={k++}>{inline(m[5], k * 100)}</em>);
-    else if (m[6] !== undefined) out.push(<em key={k++}>{inline(m[6], k * 100)}</em>);
-    else if (m[7] !== undefined) out.push(<span key={k++} className="md-link" title={m[8]}>{m[7]}<span className="md-link-url"> ({m[8]})</span></span>);
-    else if (m[9] !== undefined) out.push(<s key={k++}>{m[9]}</s>);
+    else if (m[3] !== undefined) out.push(<strong key={k++}>{inline(m[3], k * 100, wiki)}</strong>);
+    else if (m[4] !== undefined) out.push(<strong key={k++}>{inline(m[4], k * 100, wiki)}</strong>);
+    else if (m[5] !== undefined) out.push(<em key={k++}>{inline(m[5], k * 100, wiki)}</em>);
+    else if (m[6] !== undefined) out.push(<em key={k++}>{inline(m[6], k * 100, wiki)}</em>);
+    else if (m[7] !== undefined) out.push(wiki ? wiki(m[7].trim(), k++) : m[0]);
+    else if (m[8] !== undefined) out.push(<span key={k++} className="md-link" title={m[9]}>{m[8]}<span className="md-link-url"> ({m[9]})</span></span>);
+    else if (m[10] !== undefined) out.push(<s key={k++}>{m[10]}</s>);
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));
   return out;
 }
 
-export function Markdown({ text }: { text: string }) {
+export function Markdown({ text, wiki }: { text: string; wiki?: WikiLink }) {
   const blocks = parseBlocks(text);
   return (
     <div className="md">
@@ -116,29 +120,29 @@ export function Markdown({ text }: { text: string }) {
             return <CodeBlock key={i} code={b.body} lang={langFor(b.lang)} title={b.lang || undefined} compact />;
           case 'h': {
             const Tag = (`h${Math.min(6, b.level + 2)}` as unknown) as 'h3';
-            return <Tag key={i} className={`md-h md-h${b.level}`}>{inline(b.text)}</Tag>;
+            return <Tag key={i} className={`md-h md-h${b.level}`}>{inline(b.text, 0, wiki)}</Tag>;
           }
           case 'ul':
             return b.ordered ? (
-              <ol key={i}>{b.items.map((it, j) => <li key={j}>{inline(it)}</li>)}</ol>
+              <ol key={i}>{b.items.map((it, j) => <li key={j}>{inline(it, 0, wiki)}</li>)}</ol>
             ) : (
-              <ul key={i}>{b.items.map((it, j) => <li key={j}>{inline(it)}</li>)}</ul>
+              <ul key={i}>{b.items.map((it, j) => <li key={j}>{inline(it, 0, wiki)}</li>)}</ul>
             );
           case 'quote':
-            return <blockquote key={i}>{inline(b.text)}</blockquote>;
+            return <blockquote key={i}>{inline(b.text, 0, wiki)}</blockquote>;
           case 'hr':
             return <hr key={i} />;
           case 'table':
             return (
               <div key={i} className="md-table-wrap">
                 <table className="md-table">
-                  <thead>{b.rows[0] && <tr>{b.rows[0].map((c, j) => <th key={j}>{inline(c)}</th>)}</tr>}</thead>
-                  <tbody>{b.rows.slice(1).map((r, ri) => <tr key={ri}>{r.map((c, j) => <td key={j}>{inline(c)}</td>)}</tr>)}</tbody>
+                  <thead>{b.rows[0] && <tr>{b.rows[0].map((c, j) => <th key={j}>{inline(c, 0, wiki)}</th>)}</tr>}</thead>
+                  <tbody>{b.rows.slice(1).map((r, ri) => <tr key={ri}>{r.map((c, j) => <td key={j}>{inline(c, 0, wiki)}</td>)}</tr>)}</tbody>
                 </table>
               </div>
             );
           default:
-            return <p key={i}>{inline(b.text)}</p>;
+            return <p key={i}>{inline(b.text, 0, wiki)}</p>;
         }
       })}
     </div>

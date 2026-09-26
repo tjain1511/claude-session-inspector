@@ -21,9 +21,17 @@ export interface CardProps {
   extraClass?: string;
   children?: ReactNode;
   summary?: ReactNode; // shown when collapsed
+  lead?: ReactNode; // status glyph before the role/title
+  eventId?: string; // enables "copy link to this event"
 }
 
-export function Card({ type, role, title, desc, right, open, force, defaultOpen = true, onToggle, copyText, onRaw, extraClass = '', children, summary }: CardProps) {
+/** Deep link to an event in the open session (same page, hash-addressed). */
+export function eventLink(eventId: string): string {
+  const m = location.hash.match(/session=([0-9a-f-]{36})/i);
+  return `${location.origin}${location.pathname}#session=${m ? m[1] : ''}&event=${encodeURIComponent(eventId)}`;
+}
+
+export function Card({ type, role, title, desc, right, open, force, defaultOpen = true, onToggle, copyText, onRaw, extraClass = '', children, summary, lead, eventId }: CardProps) {
   const [local, setLocal] = useState(defaultOpen);
   const seen = useRef<number | null>(null);
   if (force && force.v !== seen.current) {
@@ -52,11 +60,13 @@ export function Card({ type, role, title, desc, right, open, force, defaultOpen 
         }}
       >
         <Icon name="chevron" size={11} className="chev" />
+        {lead}
         {role && <span className="role">{role}</span>}
         {title && <span className="name">{title}</span>}
         {desc && <span className="desc" title={desc}>{desc}</span>}
         <span className="right">
           <span className="actions">
+            {eventId && <CopyButton getText={() => eventLink(eventId)} label="Copy link to this event" icon="link" />}
             {copyText !== undefined && <CopyButton text={copyText} label="Copy content" />}
             {onRaw && (
               <button

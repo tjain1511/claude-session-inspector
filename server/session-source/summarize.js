@@ -2,8 +2,10 @@
 // lowercase search digest. The reducer state is plain JSON so it can be cached and
 // resumed when a live session file grows.
 import { classifyUserRecord, userText, titleFromPrompt, toolResultText, stringifyShort } from './content.js';
+import { memoryOpsFromToolUse, memoryOpsFromAttachment } from './memory-ops.js';
 
 const DIGEST_CAP = 512 * 1024; // chars of searchable text kept per session
+const MEMORY_OPS_CAP = 300; // memory reads/writes remembered per transcript
 
 export function createSummaryState(id, { isAgent = false } = {}) {
   return {
@@ -43,6 +45,7 @@ export function createSummaryState(id, { isAgent = false } = {}) {
     permissionModes: {},
     agentIds: {},
     hasImages: false,
+    memoryOps: [],
     digest: '',
     digestFull: false,
   };
@@ -57,6 +60,14 @@ function addDigest(state, text) {
     return;
   }
   state.digest += t + '\n';
+}
+
+function addMemoryOps(state, ops, rec, toolUseId) {
+  for (const op of ops) {
+    if (state.memoryOps.length >= MEMORY_OPS_CAP) return;
+    if (op.op === 'loaded' && state.memoryOps.some((o) => o.op === 'loaded' && o.project === op.project && o.file === op.file)) continue;
+    state.memoryOps.push({ ...op, ts: rec.timestamp || null, toolUseId: toolUseId || null, sidechain: !!rec.isSidechain });
+  }
 }
 
 function bump(map, key) {
@@ -94,7 +105,10 @@ export function reduceRecord(state, rec) {
         for (const b of c) {
           if (!b || typeof b !== 'object') continue;
           if (b.type === 'tool_result') {
-            if (b.is_error) state.toolErrors++;
+            if (b.is_error) {
+              state.toolErrors++;
+              for (const op of state.memoryOps) if (op.toolUseId && op.toolUseId === b.tool_use_id) op.failed = true;
+            }
             addDigest(state, stringifyShort(toolResultText(b.content), 2048));
           } else if (b.type === 'image') state.hasImages = true;
         }
@@ -147,6 +161,7 @@ export function reduceRecord(state, rec) {
           bump(state.toolNames, b.name);
           addDigest(state, b.name);
           addDigest(state, stringifyShort(b.input, 2048));
+          addMemoryOps(state, memoryOpsFromToolUse(b), rec, b.id);
         } else if (b.type === 'text') addDigest(state, stringifyShort(b.text, 8192));
         else if (b.type === 'thinking') state.thinkingBlocks++;
       }
@@ -155,6 +170,7 @@ export function reduceRecord(state, rec) {
     case 'attachment':
       seeCommon(state, rec);
       state.attachments++;
+      addMemoryOps(state, memoryOpsFromAttachment(rec.attachment), rec, null);
       break;
     case 'system':
       seeCommon(state, rec);
@@ -250,6 +266,12 @@ export function summaryFromState(state, extra = {}) {
     permissionModes: Object.keys(state.permissionModes),
     hasImages: state.hasImages,
     inFileAgentIds: Object.keys(state.agentIds),
+    memory: memorySummary(state.memoryOps),
     ...extra,
   };
+}
+
+/** Compact per-transcript memory activity for the session list (contents stay server-side). */
+export function memorySummary(ops = []) {
+  return ops.map((o) => ({ op: o.op, project: o.project, file: o.file, ts: o.ts, tool: o.tool, toolUseId: o.toolUseId, failed: !!o.failed, inferred: !!o.inferred }));
 }

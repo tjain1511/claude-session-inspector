@@ -10,6 +10,42 @@ import { Icon } from '@/components/common/Icon';
 import { formatNumber, modelLabel } from '@/utils/format';
 import { firstLine, fullTextFromRaw } from '@/utils/events';
 import { usePrimaryModel } from '@/features/sessions/primaryModel';
+import { Clamp } from '@/components/common/Clamp';
+
+type Part = { kind: 'text'; text: string } | { kind: 'pasted'; text: string; id: string | null };
+
+/** Split a prompt into plain text and <pasted_content> blocks (Claude Code wraps large pastes in that tag). */
+function splitPasted(text: string): Part[] {
+  const out: Part[] = [];
+  // The closing tag can be missing when the server truncated a very long prompt.
+  const re = /<pasted_content(?:\s+id="([^"]*)")?[^>]*>\n?([\s\S]*?)(?:\n?<\/pasted_content>|$)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    if (!m[0]) break;
+    if (m.index > last) out.push({ kind: 'text', text: text.slice(last, m.index) });
+    out.push({ kind: 'pasted', id: m[1] ?? null, text: m[2] ?? '' });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ kind: 'text', text: text.slice(last) });
+  return out.map((p) => (p.kind === 'text' ? { ...p, text: p.text.trim() } : p)).filter((p) => p.kind === 'pasted' || p.text);
+}
+
+function PastedBlock({ text, query }: { text: string; query?: string }) {
+  const lines = text.split('\n').length;
+  const [open, setOpen] = useState(lines <= 12);
+  return (
+    <div className={`pasted ${open ? 'open' : ''}`}>
+      <button type="button" className="pasted-head" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} aria-expanded={open}>
+        <Icon name={open ? 'chevronDown' : 'chevron'} size={10} />
+        <span className="lbl">Pasted content</span>
+        <span className="help-text">{lines.toLocaleString()} lines · {formatNumber(text.length)} chars</span>
+        {!open && <span className="peek">{firstLine(text)}</span>}
+      </button>
+      {open && <div className="pasted-body">{query ? <div style={{ whiteSpace: 'pre-wrap' }}>{markMatches(text, query.toLowerCase())}</div> : <Markdown text={text} />}</div>}
+    </div>
+  );
+}
 
 export interface EventCardProps {
   event: SessionEvent;
@@ -56,11 +92,24 @@ export function UserMessage({ event: e, sessionId, onRaw, query, forceOpen }: Ev
       }
       copyText={text}
       onRaw={() => onRaw(e)}
+      eventId={e.id}
       summary={firstLine(text)}
     >
       {!isCmd && (
-        <div className="msg-text">
-          {query ? markMatches(text, query.toLowerCase()) : text}
+        <div className="msg-text md">
+          <Clamp maxHeight={300} label="prompt" force={!!query}>
+            {splitPasted(text).map((p, i) =>
+              p.kind === 'pasted' ? (
+                <PastedBlock key={i} text={p.text} query={query} />
+              ) : query ? (
+                <div key={i} style={{ whiteSpace: 'pre-wrap' }}>{markMatches(p.text, query.toLowerCase())}</div>
+              ) : e.kind === 'human' ? (
+                <Markdown key={i} text={p.text} />
+              ) : (
+                <div key={i} style={{ whiteSpace: 'pre-wrap' }}>{p.text}</div>
+              ),
+            )}
+          </Clamp>
           {truncated && (
             <div className="cb-more" style={{ marginTop: 6 }}>
               Truncated · <button type="button" onClick={() => void load()}>Load full message ({formatNumber(e.fullLength)} chars)</button>
@@ -105,9 +154,12 @@ export function AssistantMessage({ event: e, sessionId, onRaw, query, forceOpen 
       copyText={text}
       onRaw={() => onRaw(e)}
       summary={firstLine(text) || (e.empty ? '(empty response)' : '')}
+      eventId={e.id}
     >
       <div className="msg-text md">
-        {query ? <div style={{ whiteSpace: 'pre-wrap' }}>{markMatches(text, query.toLowerCase())}</div> : <Markdown text={text} />}
+        <Clamp maxHeight={640} label="response" force={!!query}>
+          {query ? <div style={{ whiteSpace: 'pre-wrap' }}>{markMatches(text, query.toLowerCase())}</div> : <Markdown text={text} />}
+        </Clamp>
         {truncated && (
           <div className="cb-more" style={{ marginTop: 6 }}>
             Truncated · <button type="button" onClick={() => void load()}>Load full response ({formatNumber(e.fullLength)} chars)</button>
@@ -127,10 +179,10 @@ export function ThinkingBlock({ event: e, sessionId, onRaw, query, forceOpen }: 
       role="Thinking"
       defaultOpen={false}
       force={forceOpen}
-      right={<span>{e.redacted ? 'redacted' : `${formatNumber(chars)} chars`}</span>}
+      right={<span title={e.redacted ? 'Reasoning is present in the log but its text was not recorded (signature only)' : undefined}>{e.redacted ? 'redacted · signature only' : `${formatNumber(chars)} chars`}</span>}
       copyText={text}
       onRaw={() => onRaw(e)}
-      summary={e.redacted ? 'Reasoning is present in the log but its text was not recorded (signature only).' : firstLine(text)}
+      summary={e.redacted && !text ? undefined : firstLine(text)}
     >
       <div className="msg-text thinking-text">
         {e.redacted && !text ? 'Reasoning is present in the log but its text was not recorded (signature only).' : query ? markMatches(text, query.toLowerCase()) : text}

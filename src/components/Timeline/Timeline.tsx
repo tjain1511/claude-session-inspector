@@ -35,35 +35,82 @@ interface Props {
   nested?: boolean;
   live?: boolean;
   scrollParent?: React.RefObject<HTMLElement | null>;
+  filter?: FlowFilter;
 }
 
 const PAGE = 120;
 
-/** Build render items: pair tool results with their calls, group metadata, mark turn boundaries. */
-export function buildItems(events: SessionEvent[], showMeta: boolean, showThinking: boolean) {
+export type FlowMode = 'all' | 'chat' | 'tools' | 'errors';
+export interface FlowFilter {
+  mode: FlowMode;
+  tool: string; // '' = every tool
+}
+export const ALL_FLOW: FlowFilter = { mode: 'all', tool: '' };
+
+/** Ids of tool calls whose result was an error, plus error events: what the error navigator walks. */
+export function errorTargets(events: SessionEvent[]): string[] {
+  const failed = new Set<string>();
+  for (const e of events) if (e.type === 'tool_result' && e.isError && e.toolUseId) failed.add(e.toolUseId);
+  const calls = new Set<string>();
+  for (const e of events) if (e.type === 'tool_call' && e.toolUseId) calls.add(e.toolUseId);
+  const out: string[] = [];
+  for (const e of events) {
+    if (e.type === 'error') out.push(e.id);
+    else if (e.type === 'tool_call' && e.toolUseId && failed.has(e.toolUseId)) out.push(e.id);
+    else if (e.type === 'tool_result' && e.isError && (!e.toolUseId || !calls.has(e.toolUseId))) out.push(e.id);
+  }
+  return out;
+}
+
+/** Build render items: pair tool results with their calls, group metadata, mark turn boundaries, apply the flow filter. */
+export function buildItems(events: SessionEvent[], showMeta: boolean, showThinking: boolean, filter: FlowFilter = ALL_FLOW) {
   const results = new Map<string, SessionEvent>();
   for (const e of events) if (e.type === 'tool_result' && e.toolUseId) results.set(e.toolUseId, e);
   const callIds = new Set<string>();
   for (const e of events) if (e.type === 'tool_call' && e.toolUseId) callIds.add(e.toolUseId);
+  const { mode, tool } = filter;
+  const all = mode === 'all';
   const items: Item[] = [];
   let metaBuf: SessionEvent[] = [];
   let lastModel: string | null = null;
   const flush = () => {
     if (metaBuf.length) {
-      if (showMeta) items.push({ kind: 'meta', events: metaBuf, idx: items.length });
+      if (showMeta && all && !tool) items.push({ kind: 'meta', events: metaBuf, idx: items.length });
       metaBuf = [];
+    }
+  };
+  // Whether an event survives the filter. Human prompts stay as anchors in every mode so
+  // a filtered flow still reads turn by turn.
+  const keep = (e: SessionEvent): boolean => {
+    if (e.type === 'user' && e.kind === 'human') return true;
+    if (tool && e.type === 'tool_call' && e.tool !== tool) return false;
+    if (tool && mode !== 'tools' && mode !== 'errors' && e.type !== 'tool_call') return false;
+    switch (mode) {
+      case 'all':
+        return true;
+      case 'chat':
+        return e.type === 'user' || e.type === 'assistant' || e.type === 'thinking' || e.type === 'error' || e.type === 'metadata';
+      case 'tools':
+        return e.type === 'tool_call' || e.type === 'tool_result';
+      case 'errors': {
+        if (e.type === 'error') return true;
+        if (e.type === 'system' && e.subtype === 'interrupted') return true;
+        if (e.type === 'tool_call') return !!(e.toolUseId && results.get(e.toolUseId)?.isError);
+        if (e.type === 'tool_result') return !!e.isError;
+        return false;
+      }
     }
   };
   for (const e of events) {
     if (e.type === 'tool_result' && e.toolUseId && callIds.has(e.toolUseId)) continue; // rendered inside its call
     if (e.type === 'metadata' && e.kind === 'turn_duration') {
       flush();
-      items.push({ kind: 'turn', e, idx: items.length });
+      if (all && !tool) items.push({ kind: 'turn', e, idx: items.length });
       continue;
     }
     if (e.type === 'metadata' && (e.kind === 'agent-report' || e.kind === 'task-notification')) {
       flush();
-      items.push({ kind: 'event', e, idx: items.length });
+      if ((all || mode === 'chat') && !tool) items.push({ kind: 'event', e, idx: items.length });
       continue;
     }
     if (e.type === 'metadata' || e.type === 'attachment') {
@@ -71,13 +118,14 @@ export function buildItems(events: SessionEvent[], showMeta: boolean, showThinki
       continue;
     }
     if ((e.type === 'assistant' || e.type === 'thinking' || e.type === 'tool_call') && e.model) {
-      if (lastModel && e.model !== lastModel) {
+      if (lastModel && e.model !== lastModel && (all || mode === 'chat') && !tool) {
         flush();
         items.push({ kind: 'model', e, from: lastModel, to: e.model, idx: items.length });
       }
       lastModel = e.model;
     }
     if (e.type === 'thinking' && !showThinking) continue;
+    if (!keep(e)) continue;
     flush();
     items.push({ kind: 'event', e, idx: items.length });
   }
@@ -85,9 +133,9 @@ export function buildItems(events: SessionEvent[], showMeta: boolean, showThinki
   return { items, results };
 }
 
-export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({ events, sessionId, onRaw, query, matchIds, currentMatchId, forceOpen, outputLines, subagents, nested, live, scrollParent }, ref) {
+export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({ events, sessionId, onRaw, query, matchIds, currentMatchId, forceOpen, outputLines, subagents, nested, live, scrollParent, filter = ALL_FLOW }, ref) {
   const [settings] = useSettings();
-  const { items, results } = useMemo(() => buildItems(events, settings.showMetadata, settings.showThinking), [events, settings.showMetadata, settings.showThinking]);
+  const { items, results } = useMemo(() => buildItems(events, settings.showMetadata, settings.showThinking, filter), [events, settings.showMetadata, settings.showThinking, filter]);
   const [mounted, setMounted] = useState(nested ? Infinity : PAGE);
   const sentinel = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -250,7 +298,7 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({ ev
           </button>
         </div>
       )}
-      {items.length === 0 && <div className="help-text" style={{ padding: 20 }}>No events to show{!settings.showMetadata ? ' (metadata events are hidden in settings)' : ''}.</div>}
+      {items.length === 0 && <div className="help-text" style={{ padding: 20 }}>{filter.mode !== 'all' || filter.tool ? 'Nothing in this session matches the current filter.' : `No events to show${!settings.showMetadata ? ' (metadata events are hidden in settings)' : ''}.`}</div>}
     </div>
   );
 });

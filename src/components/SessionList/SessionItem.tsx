@@ -37,7 +37,7 @@ export const SessionItem = memo(function SessionItem({ session: s, selected, foc
       aria-selected={selected}
       tabIndex={-1}
       data-session-id={s.id}
-      className={`session-item ${selected ? 'selected' : ''} ${focused ? 'focused' : ''} ${menuOpen ? 'menu-open' : ''}`}
+      className={`session-item ${c.errors > 0 ? 'has-errors' : ''} ${s.live ? 'is-live' : ''} ${selected ? 'selected' : ''} ${focused ? 'focused' : ''} ${menuOpen ? 'menu-open' : ''}`}
       onClick={onSelect}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -65,13 +65,16 @@ export const SessionItem = memo(function SessionItem({ session: s, selected, foc
         {s.gitBranch && s.gitBranch !== 'HEAD' && <span className="branch" title="git branch">{s.gitBranch}</span>}
       </div>
       <div className="meta">
-        {s.model && <span className="model" title={s.model}>{modelLabel(s.model)}</span>}
-        <span>{c.messages} msg</span>
-        <span>{c.toolCalls} tools</span>
-        {s.durationMs != null && s.durationMs > 0 && <span>{formatDuration(s.durationMs, { compact: true })}</span>}
-        {(() => { const k = sessionCost(s); return k && k.usd >= 0.005 ? <span className="cost" title={k.estimated ? 'Estimated cost (no cost record yet)' : 'Cost recorded by Claude Code'}>{k.estimated ? '≈' : ''}{formatCost(k.usd)}</span> : null; })()}
-        {c.errors > 0 && <span className="err" title={`${c.toolErrors} tool errors, ${c.apiErrors} API errors`}>{c.errors} err</span>}
-        {s.subagents.length > 0 && <span className="agents" title={`${s.subagents.length} sub-agents`}><Icon name="agent" size={11} />{s.subagents.length}</span>}
+        <span className="meta-main">
+          {s.model && <span className="model" title={s.model}>{modelLabel(s.model)}</span>}
+          <span title={`${c.messages} messages (${c.userMessages} user · ${c.assistantMessages} Claude) · ${c.toolCalls} tool calls`}>{c.toolCalls} tools</span>
+          {s.durationMs != null && s.durationMs > 0 && <span>{formatDuration(s.durationMs, { compact: true })}</span>}
+          {s.subagents.length > 0 && <span className="agents" title={`${s.subagents.length} sub-agents`}><Icon name="agent" size={11} />{s.subagents.length}</span>}
+        </span>
+        <span className="meta-end">
+          {c.errors > 0 && <span className="err-badge" title={`${c.toolErrors} tool errors, ${c.apiErrors} API errors`}><Icon name="alert" size={10} />{c.errors}</span>}
+          {(() => { const k = sessionCost(s); return k && k.usd >= 0.005 ? <span className="cost" title={k.estimated ? 'Estimated cost (no cost record yet)' : 'Cost recorded by Claude Code'}>{k.estimated ? '≈' : ''}{formatCost(k.usd)}</span> : null; })()}
+        </span>
       </div>
       {!editing && (hover || menuOpen || focused) && (
         <button

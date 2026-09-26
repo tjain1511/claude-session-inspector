@@ -1,5 +1,5 @@
 // Small local metadata store: custom session names and server-side settings.
-// Lives in ~/.claude-session-viewer; never touches Claude's own files.
+// Lives in ~/.claude-session-inspector; never touches Claude's own files.
 import path from 'node:path';
 import { APP_HOME, readJsonSafe, writeJsonAtomic } from './paths.js';
 

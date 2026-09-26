@@ -167,14 +167,14 @@ export function ToolGantt({ events, subagents, onJump }: { events: SessionEvent[
         <span><i style={{ background: 'var(--thinking)' }} /> sub-agent (call → agent finished)</span>
         <span><i style={{ background: 'var(--error)' }} /> error</span>
         <span><i style={{ background: 'transparent', border: '1px dashed var(--text-3)' }} /> no result</span>
-        <span className="help-text">Rows sharing a ∥ marker were requested in the same model call (parallel batch). Overlapping bars ran concurrently. The tick inside a model bar marks its first streamed block.</span>
+        <span className="help-text" title="Rows sharing a ∥ marker were requested in the same model call (parallel batch). Overlapping bars ran concurrently. The tick inside a model bar marks its first streamed block.">∥ same batch · overlap = concurrent · tick = first streamed block</span>
       </div>
       {turns.map((turn) => {
         const span = Math.max(1, turn.end - turn.start);
         return (
           <section className="gantt-turn" key={turn.promptId}>
             <header className="gantt-turn-head" onClick={() => onJump(turn.promptId)} title="Jump to this prompt in the flow view">
-              <span className="turn-no">Turn {turn.idx}</span>
+              <span className="turn-no">Turn {turn.idx}</span>{turn.errors > 0 && <span className="err-badge"><Icon name="alert" size={10} />{turn.errors}</span>}
               <span className="turn-prompt">{turn.prompt || '(prompt)'}</span>
               <span className="turn-stats">
                 {turn.modelCalls} model · {turn.toolCalls} tools{turn.toolCalls ? ` · ${turn.batches} batch${turn.batches === 1 ? '' : 'es'} · max ${turn.maxParallel} concurrent` : ''}
@@ -203,6 +203,8 @@ export function ToolGantt({ events, subagents, onJump }: { events: SessionEvent[
                     r.kind === 'model'
                       ? `${r.label} · ${r.desc}\n${dur != null ? formatDuration(dur) : ''}${ttfb != null ? ` · first block after ${formatDuration(ttfb)}` : ''}${r.tokensOut != null ? ` · ${formatNumber(r.tokensOut)} tokens out` : ''}\n${r.blocks} block(s), ${r.tools} tool call(s)`
                       : `${r.e.tool} · ${toolSummary(r.e.tool, r.e.input)}\n${dur != null ? formatDuration(dur) : 'no result'}${r.batchSize > 1 ? `\nrequested together with ${r.batchSize - 1} other call(s)` : ''}${r.overlaps ? `\noverlaps ${r.overlaps} other call(s)` : ''}`;
+                  // Keep the duration label on-screen: inside wide bars, before bars that end near the right edge.
+                  const labelPos = width > 30 ? 'inside' : left + width > 82 ? 'before' : 'after';
                   return (
                     <div className={`gantt-row kind-${r.kind} ${r.batchSize > 1 ? 'in-batch' : ''}`} key={r.e.id} onClick={() => onJump(r.e.id)} title={tip}>
                       <div className="gantt-label">
@@ -215,7 +217,7 @@ export function ToolGantt({ events, subagents, onJump }: { events: SessionEvent[
                       <div className="gantt-track">
                         <div className={`gantt-bar ${r.status}`} style={{ left: `${left}%`, width: `${width}%`, background: r.status === 'pending' ? 'transparent' : color, borderColor: color }}>
                           {ttfb != null && dur ? <span className="ttfb" style={{ left: `${Math.min(100, (ttfb / dur) * 100)}%` }} /> : null}
-                          <span className="dur">{dur != null ? formatDuration(dur) : 'no result'}{r.kind === 'model' && r.tokensOut ? ` · ${formatNumber(r.tokensOut)} out` : ''}</span>
+                          <span className={`dur ${labelPos}`}>{dur != null ? formatDuration(dur) : 'no result'}{r.kind === 'model' && r.tokensOut ? ` · ${formatNumber(r.tokensOut)} out` : ''}</span>
                         </div>
                       </div>
                     </div>

@@ -6,6 +6,7 @@ import { mkdir, copyFile } from 'node:fs/promises';
 const watch = process.argv.includes('--watch');
 await mkdir('dist', { recursive: true });
 await copyFile('src/index.html', 'dist/index.html');
+await copyFile('src/favicon.svg', 'dist/favicon.svg');
 
 const ctx = await esbuild.context({
   entryPoints: ['src/main.tsx'],
