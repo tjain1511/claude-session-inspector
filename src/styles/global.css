@@ -336,8 +336,9 @@ a {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
-.search-box .icon-svg {
+.search-box > .icon-svg {
   position: absolute;
   left: 8px;
   color: var(--text-3);
@@ -345,21 +346,41 @@ a {
 }
 .search-box .input {
   padding-left: 28px;
-  padding-right: 60px;
+  padding-right: 8px;
+}
+.search-box.has-trail .input {
+  padding-right: 56px;
+}
+.search-box.has-value .input {
+  padding-right: 28px;
+}
+/* the custom clear button replaces the browser's native one */
+.search-box .input::-webkit-search-cancel-button,
+.search-box .input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
 }
 .search-box .kbd-hint {
   position: absolute;
   right: 6px;
   display: flex;
   gap: 3px;
+  pointer-events: none;
 }
 .search-box .clear {
   position: absolute;
-  right: 6px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius);
   color: var(--text-3);
 }
 .search-box .clear:hover {
   color: var(--text);
+  background: var(--elevated-2);
 }
 kbd {
   display: inline-block;
