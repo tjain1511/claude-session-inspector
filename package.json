@@ -1,16 +1,35 @@
 {
   "name": "claude-session-inspector",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local, offline viewer for Claude Code sessions stored on this machine.",
   "license": "MIT",
   "author": "Tushar Jain",
-  "repository": { "type": "git", "url": "git+https://github.com/tjain1511/claude-session-inspector.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tjain1511/claude-session-inspector.git"
+  },
   "homepage": "https://github.com/tjain1511/claude-session-inspector#readme",
-  "bugs": { "url": "https://github.com/tjain1511/claude-session-inspector/issues" },
+  "bugs": {
+    "url": "https://github.com/tjain1511/claude-session-inspector/issues"
+  },
   "type": "module",
-  "bin": { "claude-session-inspector": "./server/index.js" },
-  "files": ["server", "!server/test", "dist"],
-  "keywords": ["claude", "claude-code", "sessions", "transcripts", "viewer", "agents", "devtools"],
+  "bin": {
+    "claude-session-inspector": "./server/index.js"
+  },
+  "files": [
+    "server",
+    "!server/test",
+    "dist"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "sessions",
+    "transcripts",
+    "viewer",
+    "agents",
+    "devtools"
+  ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
@@ -19,7 +38,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test server/test/*.test.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {},
   "devDependencies": {
     "@types/react": "19.3.0",
