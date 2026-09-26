@@ -8,6 +8,10 @@ timing, errors, sub-agents, token usage and raw events.
 Nothing leaves your machine. There is no cloud, no telemetry, no accounts and no runtime
 dependencies beyond Node.js.
 
+## Demo
+
+▶️ [Watch the demo video](https://github.com/tjain1511/claude-session-inspector/raw/master/claude-session-inspector-demo.mp4) (MP4, ~72 MB)
+
 ## Run it
 
 ```sh
