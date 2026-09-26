@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
-    "dev": "node scripts/build.mjs --watch & node server/index.js --dev; wait",
+    "dev": "node scripts/build.mjs --watch & node --watch server/index.js --dev; wait",
     "start": "node server/index.js",
     "typecheck": "tsc --noEmit",
     "test": "node --test server/test/*.test.js"
