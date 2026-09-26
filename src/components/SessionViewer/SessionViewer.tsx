@@ -21,7 +21,8 @@ import { MemoryByToolContext, memoryByTool } from '@/utils/memory';
 import { FindBar } from '@/components/Search/FindBar';
 import { RawInspector } from '@/components/Metadata/RawInspector';
 import { eventSearchText } from '@/utils/events';
-import { formatDateTime, modelLabel, MOD, relativeTime } from '@/utils/format';
+import { formatDateTime, modelLabel, MOD, relativeTime, resumeCommand } from '@/utils/format';
+import { CopyButton } from '@/components/common/CopyButton';
 import { Popover, OptionRow } from '@/components/common/Popover';
 import { ContextMenu, type MenuItem } from '@/components/SessionList/SessionMenu';
 import { useToast } from '@/hooks/useToast';
@@ -282,7 +283,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
     'sep',
     { label: 'Copy session ID', icon: 'copy', onSelect: () => copy(s.id, 'Session ID') },
     { label: 'Copy link to session', icon: 'link', onSelect: () => copy(`${location.origin}${location.pathname}#session=${s.id}`, 'Link') },
-    { label: 'Copy resume command', icon: 'terminal', onSelect: () => copy(`cd ${JSON.stringify(s.project.raw)} && claude --resume ${s.id}`, 'Resume command') },
+    { label: 'Copy resume command', icon: 'terminal', onSelect: () => copy(resumeCommand(s), 'Resume command') },
     { label: 'Copy project path', icon: 'folder', onSelect: () => copy(s.project.raw, 'Path') },
     'sep',
     { label: 'Reload from disk', icon: 'refresh', onSelect: onReload },
@@ -310,6 +311,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
             <button type="button" className={`btn ghost sm ${findOpen ? 'active' : ''}`} onClick={() => setFindOpen(!findOpen)} title={`Find in session (${MOD}+F)`}>
               <Icon name="search" size={12} /> Find
             </button>
+            <CopyButton text={resumeCommand(s)} label="Copy resume command" icon="terminal" />
             <button type="button" className="btn ghost sm" onClick={onShowMetadata} title="Session metadata (I)">
               <Icon name="info" size={12} /> Details
             </button>

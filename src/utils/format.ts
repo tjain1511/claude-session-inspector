@@ -107,3 +107,13 @@ export function isMac(): boolean {
   return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 }
 export const MOD = isMac() ? '⌘' : 'Ctrl';
+
+/** Quote a string for POSIX shells; bare when it only holds safe characters. */
+export function shellQuote(s: string): string {
+  return /^[\w@%+=:,./~-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/** Terminal command that reopens a session in Claude Code from its original directory. */
+export function resumeCommand(s: { id: string; project: { raw: string } }): string {
+  return `cd ${shellQuote(s.project.raw)} && claude --resume ${s.id}`;
+}

@@ -7,6 +7,7 @@ import { SessionItem } from './SessionItem';
 import { ContextMenu, type MenuItem } from './SessionMenu';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { resumeCommand } from '@/utils/format';
 
 interface Props {
   sessions: SessionSummary[];
@@ -98,6 +99,7 @@ export function SessionList({ sessions, selectedId, onSelect, onRename, onClearN
     { label: 'Reset to generated title', icon: 'reset', disabled: !s.customName, onSelect: () => void onClearName(s.id).then(() => toast('Custom name removed')) },
     'sep',
     { label: 'Copy session ID', icon: 'copy', onSelect: () => void navigator.clipboard.writeText(s.id).then(() => toast('Session ID copied')) },
+    { label: 'Copy resume command', icon: 'terminal', onSelect: () => void navigator.clipboard.writeText(resumeCommand(s)).then(() => toast('Resume command copied')) },
     { label: 'Copy project path', icon: 'copy', onSelect: () => void navigator.clipboard.writeText(s.project.raw).then(() => toast('Path copied')) },
     { label: 'View metadata', icon: 'info', onSelect: () => onShowMetadata(s.id) },
     { label: canReveal ? 'Reveal session file' : 'Reveal not supported', icon: 'folder', disabled: !canReveal, onSelect: () => void api.reveal(s.id).catch(() => toast('Could not reveal file', 'error')) },
