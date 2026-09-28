@@ -107,7 +107,7 @@ test('source: discovers sessions, isolates corrupt files, reindexes incrementall
   fs.writeFileSync(path.join(proj, `${SID2}.jsonl`), '{"type":"user","uuid":"x","timestamp":"2026-01-02T00:00:00Z","message":{"role":"user","content":"hello podman"}}\n{broken\n');
   fs.writeFileSync(path.join(proj, 'notes.jsonl'), 'ignored\n');
   fs.mkdirSync(path.join(proj, SID, 'subagents'), { recursive: true });
-  fs.writeFileSync(path.join(proj, SID, 'subagents', 'agent-abc.jsonl'), line(base({ type: 'assistant', uuid: 'sa', isSidechain: true, agentId: 'abc', timestamp: '2026-01-01T10:00:03.500Z', message: { id: 'sm', model: 'claude-haiku-4-5-20251001', role: 'assistant', content: [{ type: 'text', text: 'agent says hi' }] } })));
+  fs.writeFileSync(path.join(proj, SID, 'subagents', 'agent-abc.jsonl'), line(base({ type: 'assistant', uuid: 'sa', isSidechain: true, agentId: 'abc', timestamp: '2026-01-01T10:00:03.500Z', message: { id: 'sm', model: 'claude-haiku-4-5-20251001', role: 'assistant', content: [{ type: 'text', text: 'agent says hi' }], usage: { input_tokens: 1_000_000, output_tokens: 0 } } })));
   fs.writeFileSync(path.join(proj, SID, 'subagents', 'agent-abc.meta.json'), JSON.stringify({ agentType: 'Explore', description: 'look around', toolUseId: 'toolu_1' }));
 
   assert.equal(resolveProjectsDir(claudeDir).ok, true);
@@ -130,6 +130,10 @@ test('source: discovers sessions, isolates corrupt files, reindexes incrementall
   assert.equal(s1.subagents.length, 1);
   assert.equal(s1.subagents[0].agentType, 'Explore');
   assert.equal(s1.subagents[0].toolUseId, 'toolu_1');
+  // sub-agent cost: priced on its own and folded into the session estimate
+  assert.equal(s1.subagents[0].estimate.totalUSD, 1);
+  assert.equal(s1.subagents[0].usageByModel['claude-haiku-4-5-20251001'].input, 1_000_000);
+  assert.equal(s1.estimate.byModel.find((m) => m.model === 'claude-haiku-4-5-20251001').cost, 1);
 
   // custom names
   store.setCustomName(SID, '  Debug webhook  ');

@@ -3135,6 +3135,26 @@ button.link:hover {
   overflow: hidden;
   min-width: 0;
 }
+.agents-cost {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.agent-row .agent-cost {
+  position: relative;
+  padding-bottom: 3px;
+}
+.agent-row .agent-cost i {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--thinking);
+  opacity: 0.55;
+}
+.agent-row .agent-cost.partial {
+  color: var(--warning);
+}
 .agents-head .grow {
   flex: 1;
 }
@@ -3144,7 +3164,7 @@ button.link:hover {
 }
 .agent-row {
   display: grid;
-  grid-template-columns: minmax(90px, 140px) minmax(120px, 1fr) 96px 64px 52px 64px minmax(120px, 28%);
+  grid-template-columns: minmax(90px, 140px) minmax(120px, 1fr) 96px 64px 72px 52px 64px minmax(120px, 26%);
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -3949,7 +3969,7 @@ button.link:hover {
 
 @media (max-width: 1100px) {
   .agent-row {
-    grid-template-columns: minmax(80px, 120px) 1fr 64px 52px 64px;
+    grid-template-columns: minmax(80px, 120px) 1fr 64px 72px 52px 64px;
   }
   .agent-row .agent-model,
   .agent-row .agent-track {

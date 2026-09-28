@@ -233,26 +233,34 @@ export class ClaudeSessionSource extends SessionSource {
     const base = summaryFromState(entry.state);
     const cwd = base.cwd || decodeProjectDirName(entry.projectDirName);
     const recentMs = base.endedAt ? Date.now() - Date.parse(base.endedAt) : Infinity;
-    const subagents = [...entry.subagents.values()].map((s) => ({
-      agentId: s.agentId,
-      agentType: s.meta?.agentType || null,
-      description: s.meta?.description || null,
-      toolUseId: s.meta?.toolUseId || null,
-      spawnDepth: s.meta?.spawnDepth ?? null,
-      counts: s.state ? summaryFromState(s.state).counts : null,
-      prompt: s.state?.firstPrompt || null,
-      usage: s.state?.usage || null,
-      startedAt: s.state?.firstTs || null,
-      endedAt: s.state?.lastTs || null,
-      model: s.state ? summaryFromState(s.state).model : null,
-      sizeBytes: s.size ?? 0,
-      error: s.error || null,
-      memory: memorySummary(this.verifiedMemoryOps(s.state?.memoryOps)),
-    }));
+    const rates = this.rates();
+    const subagents = [...entry.subagents.values()].map((s) => {
+      const sum = s.state ? summaryFromState(s.state) : null;
+      const usageByModel = s.state?.usageByModel || {};
+      const est = estimateCost(usageByModel, [], rates);
+      return {
+        agentId: s.agentId,
+        agentType: s.meta?.agentType || null,
+        description: s.meta?.description || null,
+        toolUseId: s.meta?.toolUseId || null,
+        spawnDepth: s.meta?.spawnDepth ?? null,
+        counts: sum ? sum.counts : null,
+        prompt: s.state?.firstPrompt || null,
+        usage: s.state?.usage || null,
+        usageByModel,
+        estimate: est.byModel.length ? { totalUSD: est.totalUSD, complete: est.complete } : null,
+        startedAt: s.state?.firstTs || null,
+        endedAt: s.state?.lastTs || null,
+        model: sum ? sum.model : null,
+        sizeBytes: s.size ?? 0,
+        error: s.error || null,
+        memory: memorySummary(this.verifiedMemoryOps(s.state?.memoryOps)),
+      };
+    });
     base.memory = memorySummary(this.verifiedMemoryOps(entry.state?.memoryOps));
     return {
       ...base,
-      estimate: estimateCost(base.usageByModel, subagents, this.rates()),
+      estimate: estimateCost(base.usageByModel, subagents, rates),
       customName,
       title: customName || base.generatedTitle || 'Untitled session',
       project: { name: path.basename(cwd) || cwd, path: tildify(cwd), raw: cwd, dirName: entry.projectDirName },

@@ -31,6 +31,15 @@ test('pricing: estimate sums main + sub-agent usage per model and flags unknown 
   assert.equal(Number(e.totalUSD.toFixed(6)), 23);
 });
 
+test('pricing: sub-agent usage is split per model when its per-model usage is known', () => {
+  const rates = mergeRates({});
+  const u = (input) => ({ input, output: 0, cacheRead: 0, cacheCreate: 0, thinking: 0 });
+  const e = estimateCost({}, [{ model: 'claude-opus-5', usage: u(2_000_000), usageByModel: { 'claude-opus-5': u(1_000_000), 'claude-haiku-4-5-20251001': u(1_000_000) } }], rates);
+  assert.equal(e.byModel.find((m) => m.model === 'claude-opus-5').cost, 5);
+  assert.equal(e.byModel.find((m) => m.model === 'claude-haiku-4-5-20251001').cost, 1);
+  assert.equal(e.totalUSD, 6);
+});
+
 test('pricing: checkRates reports how many recorded sessions the table reproduces', () => {
   const rates = mergeRates({});
   const rec = { 'claude-haiku-4-5-20251001': { inputTokens: 1_000_000, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, costUSD: 1 } };

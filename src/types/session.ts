@@ -131,6 +131,8 @@ export interface SubagentSummary {
   model: string | null;
   prompt: string | null;
   usage: { input: number; output: number; cacheRead: number; cacheCreate: number; thinking: number } | null;
+  usageByModel: Record<string, TokenUsage>;
+  estimate: { totalUSD: number; complete: boolean } | null; // usage × rate table; null when no usage
   sizeBytes: number;
   error: string | null;
   memory?: MemoryOpSummary[];

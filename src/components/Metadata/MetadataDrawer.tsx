@@ -5,7 +5,7 @@ import { CopyButton } from '@/components/common/CopyButton';
 import { formatBytes, formatCost, formatDateTime, formatDuration, formatNumber, modelLabel } from '@/utils/format';
 import { prettyJson } from '@/utils/highlight';
 import { CodeBlock } from '@/components/CodeBlock/CodeBlock';
-import { CostTable, sessionCost } from '@/components/SessionViewer/CostTable';
+import { CostTable, sessionCost, subagentTotals } from '@/components/SessionViewer/CostTable';
 
 function Row({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) {
   if (v === null || v === undefined || v === '') return null;
@@ -17,8 +17,15 @@ function Row({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) 
   );
 }
 
+/** Total tokens, with the main-transcript / sub-agent split when the session has sub-agents. */
+function tokenCell(main: number, agents: number | undefined) {
+  if (agents == null) return formatNumber(main);
+  return <>{formatNumber(main + agents)} <span className="help-text">main {formatNumber(main)} · sub-agents {formatNumber(agents)}</span></>;
+}
+
 export function MetadataDrawer({ session: s, onClose, onOpenSession }: { session: SessionSummary; onClose: () => void; onOpenSession: (id: string) => void }) {
   const c = s.counts;
+  const agents = s.subagents.length ? subagentTotals(s) : null;
   return (
     <Modal variant="drawer" title="Session details" subtitle={s.id} onClose={onClose} actions={<CopyButton text={prettyJson(s)} label="Copy JSON" small={false} />}>
       <h4>Identity</h4>
@@ -63,13 +70,14 @@ export function MetadataDrawer({ session: s, onClose, onOpenSession }: { session
         <Row k="records" v={c.records} />
         <Row k="tools used" v={s.tools.map((t) => `${t.name} ×${t.count}`).join(', ')} />
       </div>
-      <h4>Tokens (sum over API messages)</h4>
+      <h4>{agents ? 'Tokens (sum over API messages: main transcript + sub-agents)' : 'Tokens (sum over API messages)'}</h4>
       <div className="kv">
-        <Row k="input" v={formatNumber(s.usage.input)} />
-        <Row k="output" v={formatNumber(s.usage.output)} />
-        <Row k="thinking" v={s.usage.thinking ? formatNumber(s.usage.thinking) : null} />
-        <Row k="cache read" v={formatNumber(s.usage.cacheRead)} />
-        <Row k="cache write" v={formatNumber(s.usage.cacheCreate)} />
+        <Row k="input" v={tokenCell(s.usage.input, agents?.usage.input)} />
+        <Row k="output" v={tokenCell(s.usage.output, agents?.usage.output)} />
+        <Row k="thinking" v={s.usage.thinking || agents?.usage.thinking ? tokenCell(s.usage.thinking, agents?.usage.thinking) : null} />
+        <Row k="cache read" v={tokenCell(s.usage.cacheRead, agents?.usage.cacheRead)} />
+        <Row k="cache write" v={tokenCell(s.usage.cacheCreate, agents?.usage.cacheCreate)} />
+        {agents?.usd != null && <Row k="sub-agents cost" v={<>≈ {formatCost(agents.usd)}{!agents.complete ? <span className="chip warn" style={{ marginLeft: 6 }}>partial</span> : null}<span className="help-text"> estimated, included in the session cost</span></>} />}
         {s.cost && <Row k="cost (from log)" v={formatCost(s.cost.totalCostUSD)} />}
         {s.estimate?.byModel.length ? <Row k="cost (estimated)" v={<>≈ {formatCost(s.estimate.totalUSD)}{!s.estimate.complete ? <span className="chip warn" style={{ marginLeft: 6 }}>partial</span> : null}{s.cost?.totalCostUSD ? <span className="help-text"> vs recorded {formatCost(s.cost.totalCostUSD)}</span> : null}</>} /> : null}
         {s.cost && (s.cost.totalLinesAdded || s.cost.totalLinesRemoved) ? <Row k="lines changed" v={`+${s.cost.totalLinesAdded} / -${s.cost.totalLinesRemoved}`} /> : null}
@@ -93,7 +101,7 @@ export function MetadataDrawer({ session: s, onClose, onOpenSession }: { session
           <h4>Sub-agents</h4>
           <div className="kv">
             {s.subagents.map((a) => (
-              <Row key={a.agentId} k={a.agentType || 'agent'} v={<>{a.description || a.agentId} {a.model && a.model !== s.model && <span className="chip warn">{modelLabel(a.model)}</span>} <span className="help-text mono">{a.agentId}{a.model ? ` · ${a.model}` : ''}{a.counts ? ` · ${a.counts.toolCalls} tools` : ''} · {formatBytes(a.sizeBytes)}</span></>} />
+              <Row key={a.agentId} k={a.agentType || 'agent'} v={<>{a.description || a.agentId} {a.model && a.model !== s.model && <span className="chip warn">{modelLabel(a.model)}</span>} <span className="help-text mono">{a.agentId}{a.model ? ` · ${a.model}` : ''}{a.counts ? ` · ${a.counts.toolCalls} tools` : ''}{a.usage ? ` · ${formatNumber(a.usage.input + a.usage.cacheRead + a.usage.cacheCreate)} in / ${formatNumber(a.usage.output)} out` : ''}{a.estimate ? ` · ≈ ${formatCost(a.estimate.totalUSD)}` : ''} · {formatBytes(a.sizeBytes)}</span></>} />
             ))}
             {s.inFileAgentIds.length > 0 && <Row k="in-transcript agents" v={s.inFileAgentIds.join(', ')} mono />}
           </div>

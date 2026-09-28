@@ -65,7 +65,8 @@ export function costOf(usage, rate) {
 /**
  * Estimate a session's cost from per-model usage (main transcript + sub-agents).
  * @param usageByModel {[model]: {input, output, cacheRead, cacheCreate, thinking}}
- * @param subagents    [{model, usage}]
+ * @param subagents    [{model, usage, usageByModel?}]: per-model usage when known, else all of
+ *                     `usage` is charged to the agent's primary `model`
  */
 export function estimateCost(usageByModel, subagents, rates) {
   const merged = {};
@@ -80,7 +81,10 @@ export function estimateCost(usageByModel, subagents, rates) {
     t.thinking += u.thinking || 0;
   };
   for (const [m, u] of Object.entries(usageByModel || {})) add(m, u);
-  for (const s of subagents || []) add(s.model, s.usage);
+  for (const s of subagents || []) {
+    if (s.usageByModel && Object.keys(s.usageByModel).length) for (const [m, u] of Object.entries(s.usageByModel)) add(m, u);
+    else add(s.model, s.usage);
+  }
   const byModel = [];
   let total = 0;
   const unknown = [];

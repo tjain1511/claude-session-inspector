@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { SessionSummary } from '@/types/session';
 import { formatCost, formatDateTime, formatDuration, formatNumber, formatShortDateTime, modelLabel } from '@/utils/format';
 import { Icon } from '@/components/common/Icon';
-import { recordedRows, estimatedRows, sessionCost } from './CostTable';
+import { recordedRows, estimatedRows, sessionCost, subagentTotals } from './CostTable';
 import { CHANGE_OPS, OP_LABEL, openMemory, sessionMemoryOps } from '@/utils/memory';
 
 interface StatProps {
@@ -60,8 +60,19 @@ export function SessionOverview({ session: s, onShowMetadata, onShowErrors, erro
       (cost.estimated ? '\nEstimated from token usage × the rate table (Settings → Pricing); Claude Code has not written a cost record for this session yet' : '\nAs recorded by Claude Code') +
       '\nClick for the per-model breakdown'
     : '';
-  const tokensIn = s.usage.input + s.usage.cacheRead + s.usage.cacheCreate;
-  const cacheHit = tokensIn > 0 ? s.usage.cacheRead / tokensIn : null;
+  // Tokens: main transcript plus every sub-agent transcript, so the count matches the cost.
+  const agents = subagentTotals(s);
+  const au = agents.usage;
+  const mainIn = s.usage.input + s.usage.cacheRead + s.usage.cacheCreate;
+  const agentIn = au.input + au.cacheRead + au.cacheCreate;
+  const tokensIn = mainIn + agentIn;
+  const tokensOut = s.usage.output + au.output;
+  const cacheHit = tokensIn > 0 ? (s.usage.cacheRead + au.cacheRead) / tokensIn : null;
+  const agentShare = tokensIn + tokensOut > 0 ? (agentIn + au.output) / (tokensIn + tokensOut) : 0;
+  const usageLines = (u: typeof au) => `  uncached input ${formatNumber(u.input)}\n  cache read ${formatNumber(u.cacheRead)}\n  cache write ${formatNumber(u.cacheCreate)}\n  output ${formatNumber(u.output)}${u.thinking ? `\n  of which thinking ${formatNumber(u.thinking)}` : ''}`;
+  const tokensTitle = s.subagents.length
+    ? `Summed over API messages in the main transcript and ${s.subagents.length} sub-agent transcript${s.subagents.length === 1 ? '' : 's'}\n\nMain: ${formatNumber(mainIn)} in · ${formatNumber(s.usage.output)} out\n${usageLines(s.usage)}\n\nSub-agents: ${formatNumber(agentIn)} in · ${formatNumber(au.output)} out (${Math.round(agentShare * 100)}%)\n${usageLines(au)}`
+    : `Summed over API messages in the main transcript\n${usageLines(s.usage)}`;
   const agentErrors = s.subagents.reduce((n, a) => n + (a.counts?.errors ?? 0), 0);
   const topTool = s.tools[0];
   const memOps = sessionMemoryOps(s);
@@ -101,12 +112,12 @@ export function SessionOverview({ session: s, onShowMetadata, onShowErrors, erro
         active={errorsActive}
         title={c.errors ? 'Show only errors in the flow' : 'No tool or API errors in the main transcript'}
       />
-      {tokensIn || s.usage.output ? (
+      {tokensIn || tokensOut ? (
         <Stat
           label="Tokens"
-          value={<>{formatNumber(tokensIn)} <small>in</small> · {formatNumber(s.usage.output)} <small>out</small></>}
-          sub={cacheHit != null ? `${Math.round(cacheHit * 100)}% cache hit` : undefined}
-          title={`Summed over API messages in the main transcript\nuncached input ${formatNumber(s.usage.input)}\ncache read ${formatNumber(s.usage.cacheRead)}\ncache write ${formatNumber(s.usage.cacheCreate)}\noutput ${formatNumber(s.usage.output)}${s.usage.thinking ? `\nof which thinking ${formatNumber(s.usage.thinking)}` : ''}`}
+          value={<>{formatNumber(tokensIn)} <small>in</small> · {formatNumber(tokensOut)} <small>out</small></>}
+          sub={[cacheHit != null ? `${Math.round(cacheHit * 100)}% cache hit` : '', agentShare > 0 ? `${Math.round(agentShare * 100)}% sub-agents` : ''].filter(Boolean).join(' · ') || undefined}
+          title={tokensTitle}
         />
       ) : null}
       {cost ? (
@@ -133,11 +144,11 @@ export function SessionOverview({ session: s, onShowMetadata, onShowErrors, erro
         <Stat
           label="Sub-agents"
           value={<><Icon name="agent" size={12} /> {s.subagents.length}</>}
-          sub={agentErrors ? `${agentErrors} errors inside` : agentModels.size ? [...agentModels.keys()].map(modelLabel).join(', ') : 'show list'}
+          sub={agentErrors ? `${agentErrors} errors inside` : [agents.usd != null ? `≈ ${formatCost(agents.usd)}` : '', agentModels.size ? [...agentModels.keys()].map(modelLabel).join(', ') : ''].filter(Boolean).join(' · ') || 'show list'}
           tone={agentErrors ? 'error' : 'agent'}
           onClick={onToggleAgents}
           active={agentsOpen}
-          title="Show every sub-agent with its model, activity and when it ran"
+          title={`Show every sub-agent with its model, cost, activity and when it ran${agents.usd != null ? `\n\nSub-agents ≈ ${formatCost(agents.usd)}${cost && cost.usd > 0 ? ` (${Math.min(100, Math.round((agents.usd / cost.usd) * 100))}% of the session's ${formatCost(cost.usd)})` : ''}${!agents.complete ? ', partial — missing rates' : ''}\nEstimated from each agent's tokens × the rate table; already included in the session cost` : ''}`}
         />
       )}
     </div>

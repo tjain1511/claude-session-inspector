@@ -53,6 +53,23 @@ export function sessionCost(s: SessionSummary): { usd: number; estimated: boolea
   return null;
 }
 
+/** Token usage summed over every sub-agent transcript, plus their estimated cost. */
+export function subagentTotals(s: SessionSummary) {
+  const usage = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0, thinking: 0 };
+  let usd = 0;
+  let priced = 0;
+  let complete = true;
+  for (const a of s.subagents) {
+    if (a.usage) for (const k of Object.keys(usage) as (keyof typeof usage)[]) usage[k] += a.usage[k] || 0;
+    if (a.estimate) {
+      usd += a.estimate.totalUSD;
+      priced++;
+      if (!a.estimate.complete) complete = false;
+    }
+  }
+  return { usage, usd: priced ? usd : null, complete };
+}
+
 export function CostTable({ session: s, mode }: { session: SessionSummary; mode?: 'recorded' | 'estimated' }) {
   const recorded = recordedRows(s);
   const useRecorded = mode === 'recorded' || (mode !== 'estimated' && recorded.length > 0);
