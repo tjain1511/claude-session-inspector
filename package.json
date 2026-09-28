@@ -1,6 +1,6 @@
 {
   "name": "claude-session-inspector",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Local, offline viewer for Claude Code sessions stored on this machine.",
   "license": "MIT",
   "author": "Tushar Jain",
