@@ -9,7 +9,7 @@ import { Icon } from '@/components/common/Icon';
 import { ToolInput } from './ToolInput';
 import { ToolResultBody } from './ToolResult';
 import { SubagentPanel } from './SubagentPanel';
-import { formatDuration, modelLabel } from '@/utils/format';
+import { formatCost, formatDuration, formatNumber, modelLabel } from '@/utils/format';
 import { useSettings } from '@/features/settings/settings';
 import { usePrimaryModel } from '@/features/sessions/primaryModel';
 import { toolSummary } from '@/utils/events';
@@ -78,6 +78,11 @@ export function ToolCallCard({ event: e, result, sessionId, onRaw, query, forceO
           {subagent && <span className="chip agent-type" title={`Sub-agent ${subagent.agentId}`}><Icon name="agent" size={10} />{subagent.agentType || 'agent'}</span>}
           {subagent?.model && subagent.model !== primary && <span className="chip warn" title={`Ran on ${subagent.model}${primary ? ` (session: ${primary})` : ''}`}>{modelLabel(subagent.model)}</span>}
           {subagent?.counts && <span title="Sub-agent activity">{subagent.counts.toolCalls} tools{subagent.counts.errors ? <span className="status-error"> · {subagent.counts.errors} err</span> : null}</span>}
+          {subagent?.estimate && subagent.usage && (
+            <span className={`agent-cost-chip mono ${subagent.estimate.complete ? '' : 'status-warn'}`} title={`Estimated sub-agent cost (its tokens × the rate table in Settings → Pricing), already included in the session cost\n${formatNumber(subagent.usage.input + subagent.usage.cacheRead + subagent.usage.cacheCreate)} in · ${formatNumber(subagent.usage.output)} out${subagent.estimate.complete ? '' : '\nPartial: a model has no rate'}`}>
+              ≈{formatCost(subagent.estimate.totalUSD)}
+            </span>
+          )}
           {agentMs != null && <span className="agent-ran" title={`The sub-agent ran from ${subagent?.startedAt} to ${subagent?.endedAt}; the call itself returned after ${formatDuration(durationMs)}`}>ran {formatDuration(agentMs)}</span>}
           {result?.interrupted && <span className="chip warn">interrupted</span>}
           {result?.denied && <span className="chip warn" title={result.denied}>denied</span>}

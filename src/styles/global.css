@@ -4133,6 +4133,13 @@ button.link:hover {
 .card-head .right .agent-ran {
   color: var(--thinking);
 }
+.card-head .right .agent-cost-chip {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.card-head .right .agent-cost-chip.status-warn {
+  color: var(--warning);
+}
 .meta-group .body > button {
   max-width: 100%;
   white-space: nowrap;

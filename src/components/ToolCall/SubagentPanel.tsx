@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { SessionEvent, SubagentSummary, SubagentRead } from '@/types/session';
 import { api } from '@/services/api';
 import { Icon } from '@/components/common/Icon';
-import { formatDuration, modelLabel, plural } from '@/utils/format';
+import { formatCost, formatDuration, formatNumber, modelLabel, plural } from '@/utils/format';
 import { Timeline } from '@/components/Timeline/Timeline';
 
 interface Props {
@@ -41,6 +41,18 @@ export function SubagentPanel({ sessionId, agent, onRaw, query, outputLines }: P
         <span className="k">description</span><span className="v">{agent.description || '—'}</span>
         <span className="k">agent id</span><span className="v mono">{agent.agentId}</span>
         {agent.model && (<><span className="k">model</span><span className="v">{modelLabel(agent.model)}</span></>)}
+        {agent.usage && (<><span className="k">tokens</span><span className="v mono">{formatNumber(agent.usage.input + agent.usage.cacheRead + agent.usage.cacheCreate)} in ({formatNumber(agent.usage.cacheRead)} cache read · {formatNumber(agent.usage.cacheCreate)} cache write · {formatNumber(agent.usage.input)} uncached) · {formatNumber(agent.usage.output)} out{agent.usage.thinking ? ` (${formatNumber(agent.usage.thinking)} thinking)` : ''}</span></>)}
+        {agent.estimate && (
+          <>
+            <span className="k">cost (est.)</span>
+            <span className="v">
+              ≈ {formatCost(agent.estimate.totalUSD)}
+              {!agent.estimate.complete && <span className="chip warn" style={{ marginLeft: 6 }}>partial — missing rates</span>}
+              {Object.keys(agent.usageByModel).length > 1 && <span className="help-text"> · {Object.keys(agent.usageByModel).map(modelLabel).join(', ')}</span>}
+              <span className="help-text"> · tokens × rates from Settings → Pricing, included in the session cost</span>
+            </span>
+          </>
+        )}
         {agent.counts && (<><span className="k">activity</span><span className="v">{plural(agent.counts.assistantMessages, 'message')} · {plural(agent.counts.toolCalls, 'tool call')}{agent.counts.errors ? ` · ${plural(agent.counts.errors, 'error')}` : ''}{dur != null ? ` · ${formatDuration(dur)}` : ''}</span></>)}
       </div>
       <button type="button" className="btn sm" style={{ marginTop: 8 }} onClick={() => void toggle()} aria-expanded={open}>
