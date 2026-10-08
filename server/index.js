@@ -269,6 +269,13 @@ async function handleApi(req, res, url) {
 
   if (resource === 'memory' && req.method === 'GET') return send(res, 200, requireSource().memoryReport());
 
+  // Evaluation: deterministic per-session analysis (no network, no model calls).
+  if (resource === 'analysis' && req.method === 'GET') {
+    const src = requireSource();
+    const r = await src.analyzeAll();
+    return send(res, 200, { ...r, status: indexState.status });
+  }
+
   if (resource === 'search' && req.method === 'GET') {
     const src = requireSource();
     const query = String(q.get('q') || '').slice(0, 500);
@@ -290,6 +297,7 @@ async function handleApi(req, res, url) {
       return s ? send(res, 200, s) : send(res, 404, { error: 'session not found' });
     }
     if (sub === 'context' && req.method === 'GET') return send(res, 200, src.readContext(id));
+    if (sub === 'analysis' && req.method === 'GET') return send(res, 200, src.readAnalysis(id));
     if (sub === 'subagents' && subId && req.method === 'GET') {
       if (!isAgentId(subId)) return send(res, 400, { error: 'invalid agent id' });
       const from = q.has('from') ? Number(q.get('from')) : 0;

@@ -19,6 +19,7 @@ import { readMemoryDirs, readGlobalMemory } from '../memory.js';
 import { GLOBAL_MEMORY, setGlobalMemoryDir } from './memory-ops.js';
 import { normalizeRecords } from './normalize.js';
 import { createContextState, reduceContext, contextFromState } from './context.js';
+import { analyzeSession, compactAnalysis, ANALYSIS_VERSION } from './analyze.js';
 import { mergeRates, estimateCost, checkRates, FITTED_MODELS } from '../pricing.js';
 import { isUuid, isAgentId, tildify, readJsonSafe, decodeProjectDirName } from '../paths.js';
 
@@ -48,6 +49,10 @@ export class ClaudeSessionSource extends SessionSource {
     this.lastDiscovery = null;
     /** sessionId -> {size, mtimeMs, context} */
     this.contextCache = new Map();
+    /** sessionId -> {sig, analysis} (full analysis, in memory; the disk cache survives restarts) */
+    this.analysisCache = new Map();
+    this.analysisDisk = cache && cache.dir ? new (cache.constructor)(path.join(cache.dir, 'analysis')) : null;
+    this.analyzeAllInflight = null;
   }
 
   // ---------- indexing ----------
@@ -446,6 +451,105 @@ export class ClaudeSessionSource extends SessionSource {
     if (this.contextCache.size > 32) this.contextCache.delete(this.contextCache.keys().next().value);
     this.contextCache.set(id, { size: st.size, mtimeMs: st.mtimeMs, context });
     return context;
+  }
+
+  /** Every parsed record of one transcript file (used by the analyzer; not incremental). */
+  readAllRecords(file) {
+    const out = [];
+    let offset = 0;
+    let line = 1;
+    let guard = 0;
+    while (guard++ < 10_000) {
+      const r = readJsonlFrom(file, { offset, line, maxBytes: CHUNK });
+      if (r.truncated) break;
+      for (const rec of r.records) out.push(rec);
+      offset = r.offset;
+      line = r.line;
+      if ((r.records.length === 0 && r.errors.length === 0) || offset >= r.size) break;
+    }
+    return out;
+  }
+
+  /** Signature of everything the analysis depends on: the files' size/mtime, the rate table and the analyzer version. */
+  analysisSignature(entry) {
+    const st = safeStat(entry.file);
+    if (!st) return null;
+    const parts = [ANALYSIS_VERSION, st.size, st.mtimeMs];
+    for (const s of entry.subagents.values()) {
+      const ss = safeStat(s.file);
+      parts.push(s.agentId, ss ? ss.size : 0, ss ? ss.mtimeMs : 0);
+    }
+    parts.push(JSON.stringify(this.store.getSettings().rates || {}));
+    parts.push(this.readRegistry().has(entry.id) ? 'live' : 'done');
+    return parts.join('|');
+  }
+
+  /**
+   * Deterministic evaluation of one session (metrics, detected inefficiencies, derived scores).
+   * Computed from the raw records of the main and sub-agent transcripts; cached in memory and
+   * on disk until any of those files, the rate table or the analyzer version changes.
+   */
+  readAnalysis(id) {
+    const entry = this.entryFor(id);
+    const sig = this.analysisSignature(entry);
+    if (!sig) throw Object.assign(new Error('file vanished'), { status: 404 });
+    const hit = this.analysisCache.get(id);
+    if (hit && hit.sig === sig) return hit.analysis;
+    const disk = this.analysisDisk?.get(entry.file);
+    if (disk && disk.sig === sig && disk.analysis) {
+      this.remember(id, sig, disk.analysis);
+      return disk.analysis;
+    }
+    const summary = this.summaryFor(entry);
+    const main = this.readAllRecords(entry.file);
+    const subagents = [];
+    for (const s of entry.subagents.values()) {
+      try {
+        subagents.push({ agentId: s.agentId, meta: s.meta, records: this.readAllRecords(s.file) });
+      } catch {
+        /* agent file vanished; analyse without it */
+      }
+    }
+    const analysis = analyzeSession({ id, main, subagents, summary });
+    this.remember(id, sig, analysis);
+    this.analysisDisk?.set(entry.file, { sig, analysis });
+    return analysis;
+  }
+
+  remember(id, sig, analysis) {
+    if (this.analysisCache.size > 64) this.analysisCache.delete(this.analysisCache.keys().next().value);
+    this.analysisCache.set(id, { sig, analysis });
+  }
+
+  /**
+   * Compact analysis of every session for the evaluation dashboard. Sessions are analysed one
+   * at a time with the event loop released in between, so live updates and other requests keep
+   * flowing during the first (cold) pass; later passes are served from the caches.
+   */
+  analyzeAll() {
+    if (this.analyzeAllInflight) return this.analyzeAllInflight;
+    const run = async () => {
+      const out = [];
+      const failed = [];
+      let computed = 0;
+      for (const id of [...this.index.keys()]) {
+        const entry = this.index.get(id);
+        if (!entry || entry.error) continue;
+        const sig = this.analysisSignature(entry);
+        const cached = (sig && this.analysisCache.get(id)?.sig === sig) || (sig && this.analysisDisk?.get(entry.file)?.sig === sig);
+        try {
+          out.push(compactAnalysis(this.readAnalysis(id)));
+        } catch (e) {
+          failed.push({ id, message: e.message });
+        }
+        if (!cached && ++computed % 4 === 0) await new Promise((r) => setImmediate(r));
+      }
+      return { analyses: out, failed, computed };
+    };
+    this.analyzeAllInflight = run().finally(() => {
+      this.analyzeAllInflight = null;
+    });
+    return this.analyzeAllInflight;
   }
 
   readSubagent(id, agentId, opts = {}) {
