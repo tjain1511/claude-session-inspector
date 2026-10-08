@@ -12,6 +12,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['F2', 'Rename focused session'],
       [`${MOD} R`, 'Rescan sessions'],
       ['M', 'Memory: what Claude remembers across sessions'],
+      ['V', 'Evaluate: metrics and scores across sessions'],
     ],
   },
   {

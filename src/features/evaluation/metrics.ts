@@ -82,7 +82,7 @@ export const GROUP_LABEL: Record<MetricGroup, string> = {
   engineering: 'Engineering',
   efficiency: 'Behaviour',
   resources: 'Time, tokens & cost',
-  scores: 'Derived scores',
+  scores: 'Scores',
 };
 
 export const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -110,8 +110,16 @@ export const OUTCOME_TONE: Record<Outcome, 'ok' | 'warn' | 'error' | 'muted' | '
 export const SEVERITY_ORDER: Record<Severity, number> = { high: 0, medium: 1, low: 2, info: 3 };
 
 /** Whether a change from `a` to `b` is an improvement for this metric (null when neutral or unknown). */
+const RATE_IDS = new Set(['toolErrorRate', 'redundancyShare', 'cacheHit']);
+
+/** True when a change is too small to show (and so should not count as better or worse). */
+function negligible(m: Metric, a: number, b: number): boolean {
+  if (RATE_IDS.has(m.id)) return Math.abs(b - a) < 0.005; // below one percentage point
+  return a === b;
+}
+
 export function improvement(m: Metric, a: number | null, b: number | null): boolean | null {
-  if (a == null || b == null || a === b || m.better === 'neutral') return null;
+  if (a == null || b == null || negligible(m, a, b) || m.better === 'neutral') return null;
   return m.better === 'lower' ? b < a : b > a;
 }
 
@@ -119,8 +127,8 @@ export function improvement(m: Metric, a: number | null, b: number | null): bool
 export function deltaLabel(m: Metric, a: number | null, b: number | null): string {
   if (a == null || b == null) return '';
   const d = b - a;
-  if (d === 0) return 'same';
-  if (m.id === 'toolErrorRate' || m.id === 'redundancyShare' || m.id === 'cacheHit') return `${d > 0 ? '+' : ''}${Math.round(d * 100)} pts`;
+  if (negligible(m, a, b)) return 'same';
+  if (RATE_IDS.has(m.id)) return `${d > 0 ? '+' : ''}${Math.round(d * 100)} pts`;
   if (m.group === 'scores') return `${d > 0 ? '+' : ''}${d}`;
   if (Math.abs(a) < 1e-9) return `${d > 0 ? '+' : ''}${m.format(d)}`;
   const rel = (d / Math.abs(a)) * 100;

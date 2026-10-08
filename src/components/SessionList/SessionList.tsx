@@ -16,6 +16,7 @@ interface Props {
   onRename: (id: string, name: string) => Promise<unknown>;
   onClearName: (id: string) => Promise<unknown>;
   onShowMetadata: (id: string) => void;
+  onCompare?: (id: string) => void;
   canReveal: boolean;
   loading: boolean;
   listRef: React.RefObject<HTMLDivElement | null>;
@@ -23,7 +24,7 @@ interface Props {
   setEditingId: (id: string | null) => void;
 }
 
-export function SessionList({ sessions, selectedId, onSelect, onRename, onClearName, onShowMetadata, canReveal, loading, listRef, editingId, setEditingId }: Props) {
+export function SessionList({ sessions, selectedId, onSelect, onRename, onClearName, onShowMetadata, onCompare, canReveal, loading, listRef, editingId, setEditingId }: Props) {
   const [focusIdx, setFocusIdx] = useState<number>(-1);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -102,6 +103,7 @@ export function SessionList({ sessions, selectedId, onSelect, onRename, onClearN
     { label: 'Copy resume command', icon: 'terminal', onSelect: () => void navigator.clipboard.writeText(resumeCommand(s)).then(() => toast('Resume command copied')) },
     { label: 'Copy project path', icon: 'copy', onSelect: () => void navigator.clipboard.writeText(s.project.raw).then(() => toast('Path copied')) },
     { label: 'View metadata', icon: 'info', onSelect: () => onShowMetadata(s.id) },
+    { label: 'Compare with…', icon: 'compare', onSelect: () => onCompare?.(s.id) },
     { label: canReveal ? 'Reveal session file' : 'Reveal not supported', icon: 'folder', disabled: !canReveal, onSelect: () => void api.reveal(s.id).catch(() => toast('Could not reveal file', 'error')) },
   ];
 

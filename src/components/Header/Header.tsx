@@ -21,9 +21,11 @@ interface Props {
   onHome: () => void;
   onMemory: () => void;
   memoryActive: boolean;
+  onEvaluation: () => void;
+  evaluationActive: boolean;
 }
 
-export function Header({ version, connected, watching, indexing, loaded, total, issues, onRefresh, onSettings, onIssues, onToggleSidebar, sidebarCollapsed, onCollapseSidebar, onHelp, theme, onToggleTheme, onHome, onMemory, memoryActive }: Props) {
+export function Header({ version, connected, watching, indexing, loaded, total, issues, onRefresh, onSettings, onIssues, onToggleSidebar, sidebarCollapsed, onCollapseSidebar, onHelp, theme, onToggleTheme, onHome, onMemory, memoryActive, onEvaluation, evaluationActive }: Props) {
   return (
     <header className="header">
       <div className="brand">
@@ -60,6 +62,9 @@ export function Header({ version, connected, watching, indexing, loaded, total, 
         )}
       </div>
       <div className="spacer" />
+      <button type="button" className={`btn ghost header-nav ${evaluationActive ? 'active' : ''}`} onClick={onEvaluation} aria-pressed={evaluationActive} title="Evaluate coding-agent behaviour across sessions (V)">
+        <Icon name="chart" /> <span>Evaluate</span>
+      </button>
       <button type="button" className={`btn ghost header-nav ${memoryActive ? 'active' : ''}`} onClick={onMemory} aria-pressed={memoryActive} title="What Claude remembers across sessions (M)">
         <Icon name="memory" /> <span>Memory</span>
       </button>

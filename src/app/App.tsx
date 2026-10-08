@@ -10,6 +10,9 @@ import { SessionViewer } from '@/components/SessionViewer/SessionViewer';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { Dashboard } from '@/components/Dashboard/Dashboard';
 import { MemoryView, type MemoryFocus } from '@/components/Memory/MemoryView';
+import { CompareView } from '@/components/Compare/CompareView';
+import { EvaluationDashboard } from '@/components/Evaluation/EvaluationDashboard';
+import { useAnalyses } from '@/features/evaluation/useAnalyses';
 import { SettingsPanel } from '@/components/Settings/SettingsPanel';
 import { MetadataDrawer } from '@/components/Metadata/MetadataDrawer';
 import { ShortcutsHelp } from '@/components/common/ShortcutsHelp';
@@ -42,7 +45,10 @@ function Shell() {
   const [rawEvent, setRawEvent] = useState<SessionEvent | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   // What the main pane shows when no session is open.
-  const [home, setHome] = useState<'overview' | 'memory'>('overview');
+  const [home, setHome] = useState<'overview' | 'memory' | 'evaluation' | 'compare'>('overview');
+  const [compare, setCompare] = useState<{ a: string | null; b: string | null }>({ a: null, b: null });
+  // Cross-session analyses load once the evaluation dashboard or the comparison is opened.
+  const analyses = useAnalyses(!selectedId && (home === 'evaluation' || home === 'compare'), sessions.lastChange?.at ?? null);
   const [memoryFocus, setMemoryFocus] = useState<MemoryFocus>({});
   const [jumpRequest, setJumpRequest] = useState<{ sessionId: string; toolUseIds: string[]; n: number } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -72,6 +78,26 @@ function Shell() {
     if (focus) setMemoryFocus(focus);
     setHome('memory');
     select(null);
+  }, [select]);
+  const openCompare = useCallback((a?: string | null, b?: string | null) => {
+    setCompare((c) => ({ a: a === undefined ? c.a : a, b: b === undefined ? c.b : b }));
+    setHome('compare');
+    select(null);
+  }, [select]);
+  const openEvaluation = useCallback(() => {
+    setHome('evaluation');
+    select(null);
+  }, [select]);
+  useEffect(() => {
+    const onCompare = (e: Event) => {
+      const d = (e as CustomEvent<{ a?: string; b?: string }>).detail ?? {};
+      // A session asking to be compared becomes A unless A is already another session, then it is B.
+      setCompare((c) => (d.a && c.a && c.a !== d.a && !c.b ? { a: c.a, b: d.a } : { a: d.a ?? c.a, b: d.b ?? (d.a && c.b === d.a ? null : c.b) }));
+      setHome('compare');
+      select(null);
+    };
+    window.addEventListener('csv:compare', onCompare);
+    return () => window.removeEventListener('csv:compare', onCompare);
   }, [select]);
   const openSessionAt = useCallback((id: string, toolUseIds: string[]) => {
     select(id);
@@ -138,12 +164,15 @@ function Shell() {
         } else if (e.key.toLowerCase() === 'm') {
           if (!selectedId && home === 'memory') setHome('overview');
           else openMemory();
+        } else if (e.key.toLowerCase() === 'v') {
+          if (!selectedId && home === 'evaluation') setHome('overview');
+          else openEvaluation();
         }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [sessions, detail, selectedId, rawEvent, metadataId, findOpen, showSettings, showHelp, showIssues, settings.sidebarCollapsed, settings.showOutline, update, home, openMemory]);
+  }, [sessions, detail, selectedId, rawEvent, metadataId, findOpen, showSettings, showHelp, showIssues, settings.sidebarCollapsed, settings.showOutline, update, home, openMemory, openEvaluation]);
 
   // Sidebar resize
   const onResizeStart = (e: React.MouseEvent) => {
@@ -211,6 +240,8 @@ function Shell() {
         }}
         onMemory={() => openMemory()}
         memoryActive={!selectedId && home === 'memory'}
+        onEvaluation={openEvaluation}
+        evaluationActive={!selectedId && (home === 'evaluation' || home === 'compare')}
         onToggleTheme={() => update({ theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light' })}
       />
       <aside className="sidebar" aria-hidden={settings.sidebarCollapsed}>
@@ -248,6 +279,7 @@ function Shell() {
           onRename={rename}
           onClearName={clearName}
           onShowMetadata={setMetadataId}
+          onCompare={(id) => window.dispatchEvent(new CustomEvent('csv:compare', { detail: { a: id } }))}
           canReveal={!!st?.canReveal}
           loading={sessions.loading}
           listRef={listRef}
@@ -284,6 +316,19 @@ function Shell() {
               <div className="actions"><button type="button" className="btn" onClick={() => select(null)}>Back to sessions</button></div>
             </div>
           </div>
+        ) : home === 'compare' ? (
+          <CompareView
+            sessions={sessions.sessions}
+            byId={sessions.byId}
+            a={compare.a}
+            b={compare.b}
+            onPick={(side, id) => setCompare((c) => ({ ...c, [side]: id }))}
+            onSwap={() => setCompare((c) => ({ a: c.b, b: c.a }))}
+            onOpen={select}
+            changedAt={sessions.lastChange?.at ?? null}
+          />
+        ) : home === 'evaluation' ? (
+          <EvaluationDashboard sessions={sessions.sessions} byId={sessions.byId} analyses={analyses} onSelect={select} onCompare={openCompare} />
         ) : home === 'memory' ? (
           <MemoryView
             byId={sessions.byId}
