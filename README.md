@@ -96,6 +96,30 @@ show a Memory stat.
   renderer emits elements, never `innerHTML`; a strict Content-Security-Policy blocks inline scripts
   and any remote resource.
 
+## Evaluating the coding agent
+
+Beyond showing what happened, the inspector evaluates how the agent worked. Everything is computed
+locally and deterministically from the transcripts (no model calls, no network):
+
+- **Report** (view 4 in a session): what was asked and how it ended, engineering activity (tool
+  calls, shell commands by category, files read/changed with lines added/removed, test, build and
+  typecheck runs with their outcome, commits, sub-agents), agent behaviour (redundant reads,
+  repeated commands, retries without change vs. fix loops, unresolved failures, edit thrash, edit
+  misses, exploration ratio, large reads), time distribution, tokens and cost, a per-turn table,
+  detected problems with jumps to the events involved, and recommendations.
+- **Compare** (Evaluate → select two rows, or "Compare with…" in a session's menu): every metric for
+  two sessions side by side with the delta coloured by whether it is an improvement for that metric.
+- **Evaluate** (header button or `V`): the dashboard across sessions with time range, project, model,
+  outcome and problem filters; observed aggregates (completion, tool error rate, redundant calls,
+  verified changes, active time, cost), problems by frequency, score trend, per-model medians and a
+  sortable table.
+
+Observed metrics are counts from the records. **Derived scores** (reliability, efficiency,
+verification, overall) start at 100 and subtract fixed, documented penalties; every deduction is
+listed under the score, and derived values are marked and drawn with a dashed border everywhere so
+they are never mistaken for data. The rules live in `server/session-source/analyze.js`; analyses are
+cached in `~/.claude-session-inspector/cache/analysis` keyed by the transcript files' size and mtime.
+
 ## Features
 
 - Overview landing page: sessions running now, sessions with errors, most expensive sessions, cost per
@@ -149,8 +173,9 @@ show a Memory stat.
 - Outline rail (O): one row per user turn with duration split (model/tool), calls, tokens, errors and
   the sub-agents it spawned, so long multi-agent runs and generator/critic loops are navigable
 - Collapsible session list (⌘B or the header button)
-- Keyboard: ⌘K search, ⌘B toggle list, ⌘R refresh, ⌘F find in session, ↑/↓/Enter/F2 in the list, 1/2/3 switch
-  views, J/K events, [/] errors, E expand/collapse, O outline, I details, Esc closes things, `?` shows the full list
+- Keyboard: ⌘K search, ⌘B toggle list, ⌘R refresh, ⌘F find in session, ↑/↓/Enter/F2 in the list, 1/2/3/4 switch
+  views, J/K events, [/] errors, E expand/collapse, O outline, I details, M memory, V evaluate, Esc closes things,
+  `?` shows the full list
 
 ## Layout
 
@@ -167,6 +192,7 @@ server/                     Node bridge (ESM, no build step)
     summarize.js            reducer → session summary + search digest (cached, resumable)
     normalize.js            raw records → normalized events
     context.js              attachment records → system prompt / tools / agents / skills / instructions
+    analyze.js              deterministic session evaluation: metrics, inefficiency detection, derived scores
     content.js              text extraction helpers
     cache.js                on-disk summary cache
   test/                     node --test
@@ -177,6 +203,6 @@ src/                        React 19 UI (TypeScript, bundled by esbuild)
 ## Tests
 
 ```sh
-npm test        # server: parser, summarizer, normalizer, session source
+npm test        # server: parser, summarizer, normalizer, session source, analyzer
 npm run typecheck
 ```
