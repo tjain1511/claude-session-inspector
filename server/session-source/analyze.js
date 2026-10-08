@@ -12,7 +12,7 @@
 // a fixed threshold documented next to it. Derived scores are kept apart from observed data.
 import { classifyUserRecord, userText, toolResultText, titleFromPrompt } from './content.js';
 
-export const ANALYSIS_VERSION = 3;
+export const ANALYSIS_VERSION = 4;
 
 const MUTATING_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
 const SEARCH_TOOLS = new Set(['Grep', 'Glob', 'ToolSearch', 'LS']);
@@ -138,6 +138,16 @@ function editDelta(tool, input, result) {
   return { added: 0, removed: 0 };
 }
 
+/** A target shortened for prose: file paths keep their last two segments. */
+function shortTarget(tool, target) {
+  if (!target) return '';
+  if (target.startsWith('/') || target.startsWith('~')) {
+    const parts = target.split('/').filter(Boolean);
+    return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : target;
+  }
+  return target.length > 70 ? target.slice(0, 67) + '…' : target;
+}
+
 function targetOf(tool, input) {
   const i = input && typeof input === 'object' ? input : {};
   switch (tool) {
@@ -206,6 +216,7 @@ function ledgerFor(records, fileKey, { isAgent = false } = {}) {
   let prevTs = null;
   const time = { modelMs: 0, toolMs: 0, userMs: 0, otherMs: 0, backgroundMs: 0 };
   let carried = 0;
+  let idle = false; // set by a turn_duration record: the model has returned control and is not running
   let firstPrompt = null;
   let firstPromptFull = null;
   let lastAssistantText = null;
@@ -273,7 +284,9 @@ function ledgerFor(records, fileKey, { isAgent = false } = {}) {
       if (hadResult) {
         time.toolMs += gap;
         lastKind = 'tool_result';
+        idle = false;
       } else if (kind === 'human' && (!o.isSidechain || isAgent)) {
+        idle = false;
         const text = userText(c);
         time.userMs += gap;
         lastKind = 'prompt';
@@ -292,14 +305,22 @@ function ledgerFor(records, fileKey, { isAgent = false } = {}) {
         // Waiting on a background task or sub-agent counts as tool time (the agent was blocked on it).
         time.backgroundMs += gap;
         if (turn) turn.toolMs += gap;
+        idle = false;
       } else if (kind === 'command') {
         time.userMs += gap;
         lastKind = 'command';
       } else carried += gap;
     } else if (o.type === 'assistant') {
       const m = o.message || {};
-      time.modelMs += gap;
-      if (turn) turn.modelMs += gap;
+      if (idle) {
+        // Woken by a background task (sub-agent, monitor, scheduled wake-up) after the turn had ended.
+        time.backgroundMs += gap;
+        if (turn) turn.toolMs += gap;
+      } else {
+        time.modelMs += gap;
+        if (turn) turn.modelMs += gap;
+      }
+      idle = false;
       if (o.isApiErrorMessage || o.error) {
         apiErrors++;
         lastApiErrorTs = t;
@@ -352,7 +373,10 @@ function ledgerFor(records, fileKey, { isAgent = false } = {}) {
         lastKind = 'api_error';
         if (turn) turn.apiErrors++;
         time.otherMs += gap;
-      } else carried += gap;
+      } else {
+        if (o.subtype === 'turn_duration') idle = true;
+        carried += gap;
+      }
     } else carried += gap;
     if (t != null) {
       prevTs = t;
@@ -721,11 +745,11 @@ export function analyzeSession({ id, main, subagents = [], summary }) {
   if (identicalRetries > 0) {
     const sev = identicalRetries >= 4 ? 'high' : identicalRetries >= 2 ? 'medium' : 'low';
     const withIdentical = chains.filter((c) => c.identical > 0);
-    add('retry-no-change', sev, `${identicalRetries} retr${identicalRetries === 1 ? 'y' : 'ies'} without changing the input`, `A failed call was re-issued with exactly the same input${withIdentical.length > 1 ? ` on ${withIdentical.length} targets` : ''} (e.g. ${withIdentical[0].tool}: ${withIdentical[0].target.slice(0, 70)}). Repeating a failed call unchanged rarely succeeds; the input or the plan should change first.`, withIdentical.flatMap((c) => c.refs), identicalRetries);
+    add('retry-no-change', sev, `${identicalRetries} retr${identicalRetries === 1 ? 'y' : 'ies'} without changing the input`, `A failed call was re-issued with exactly the same input${withIdentical.length > 1 ? ` on ${withIdentical.length} targets` : ''} (e.g. ${withIdentical[0].tool}: ${shortTarget(withIdentical[0].tool, withIdentical[0].target)}). Repeating a failed call unchanged rarely succeeds; the input or the plan should change first.`, withIdentical.flatMap((c) => c.refs), identicalRetries);
   }
   if (unresolvedChains.length > 0) {
     const sev = unresolvedChains.length >= 3 || unresolvedChains.some((c) => c.attempts >= 4) ? 'high' : 'medium';
-    add('unresolved-failures', sev, `${unresolvedChains.length} failure${unresolvedChains.length === 1 ? '' : 's'} never resolved`, `${unresolvedChains.length === 1 ? 'A target' : 'Targets'} failed repeatedly and no later attempt succeeded: ${unresolvedChains.slice(0, 3).map((c) => `${c.tool} ${c.target.slice(0, 50)} (${c.attempts} attempts)`).join('; ')}.`, unresolvedChains.flatMap((c) => c.refs), unresolvedChains.length);
+    add('unresolved-failures', sev, `${unresolvedChains.length} failure${unresolvedChains.length === 1 ? '' : 's'} never resolved`, `${unresolvedChains.length === 1 ? 'A target' : 'Targets'} failed repeatedly and no later attempt succeeded: ${unresolvedChains.slice(0, 3).map((c) => `${c.tool} ${shortTarget(c.tool, c.target)} (${c.attempts} attempts)`).join('; ')}.`, unresolvedChains.flatMap((c) => c.refs), unresolvedChains.length);
   }
   if (thrash.length > 0) {
     const sev = thrash.some((f) => f.edits >= 10) ? 'high' : 'medium';

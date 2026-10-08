@@ -17,7 +17,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
   {
     title: 'Session',
     rows: [
-      ['1 2 3', 'Flow · Timeline · Context view'],
+      ['1 2 3 4', 'Flow · Timeline · Context · Report view'],
       [`${MOD} F`, 'Find within the session'],
       ['J K', 'Next / previous event'],
       ['] [', 'Next / previous error'],

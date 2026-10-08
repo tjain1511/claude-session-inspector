@@ -16,6 +16,9 @@ import { SessionOutline } from './SessionOutline';
 import { ContextView, ContextCard } from '@/components/Context/ContextView';
 import { ToolDocsContext, type ContextTab } from '@/components/Context/ToolDocs';
 import { useSessionContext } from '@/features/sessions/useSessionContext';
+import { useSessionAnalysis } from '@/features/sessions/useSessionAnalysis';
+import { ReportView } from '@/components/Report/ReportView';
+import type { EventRef } from '@/types/analysis';
 import { PrimaryModelContext } from '@/features/sessions/primaryModel';
 import { MemoryByToolContext, memoryByTool } from '@/utils/memory';
 import { FindBar } from '@/components/Search/FindBar';
@@ -53,7 +56,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
   const [find, setFind] = useState('');
   const [findIdx, setFindIdx] = useState(0);
   const [forceOpen, setForceOpen] = useState<ForceOpen>(null);
-  const [view, setView] = useState<'flow' | 'gantt' | 'context'>('flow');
+  const [view, setView] = useState<'flow' | 'gantt' | 'context' | 'report'>('flow');
   const [filter, setFilter] = useState<FlowFilter>(ALL_FLOW);
   const [errIdx, setErrIdx] = useState(-1);
   const [activeTurn, setActiveTurn] = useState<string | null>(null);
@@ -61,6 +64,9 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
   const [ctxTab, setCtxTab] = useState<ContextTab>('prompt');
   const [ctxFocus, setCtxFocus] = useState<string | undefined>(undefined);
   const ctx = useSessionContext(s.id, detail.appendedAt);
+  // The report is only fetched once the tab is opened (and refreshed when the transcript grows).
+  const [reportOpened, setReportOpened] = useState(false);
+  const analysis = useSessionAnalysis(s.id, detail.appendedAt, reportOpened);
   const toolDocs = useMemo(() => new Map((ctx.context?.tools ?? []).map((t) => [t.name, t])), [ctx.context]);
   const openContextTab = useCallback((tab: ContextTab, focus?: string) => {
     setCtxTab(tab);
@@ -155,6 +161,22 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
     const id = toolUseId ? callByToolUse.get(toolUseId) : undefined;
     if (id) jumpTo(id);
   }, [callByToolUse, jumpTo]);
+  // Report findings point at events; sub-agent events resolve to the Agent call that spawned them.
+  const jumpRef = useCallback((ref: EventRef) => {
+    if (ref.agentId) {
+      const agent = s.subagents.find((a) => a.agentId === ref.agentId);
+      if (agent?.toolUseId) jumpAgent(agent.toolUseId);
+      else toast('That sub-agent has no Agent call in the main flow', 'error');
+    } else if (ref.id) jumpTo(ref.id);
+  }, [s.subagents, jumpAgent, jumpTo, toast]);
+  useEffect(() => {
+    if (view === 'report') setReportOpened(true);
+  }, [view]);
+  useEffect(() => {
+    const onOpen = () => setView('report');
+    window.addEventListener('csv:report', onOpen);
+    return () => window.removeEventListener('csv:report', onOpen);
+  }, []);
 
   const memoryTools = useMemo(() => memoryByTool(s), [s]);
   const handledJump = useRef<number | null>(null);
@@ -245,6 +267,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
     setFind('');
     setForceOpen(null);
     setView('flow');
+    setReportOpened(false);
     setFilter(ALL_FLOW);
     setErrIdx(-1);
     setCtxFocus(undefined);
@@ -268,6 +291,7 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
       else if (e.key === '1') setView('flow');
       else if (e.key === '2') setView('gantt');
       else if (e.key === '3') setView('context');
+      else if (e.key === '4') setView('report');
       else if (e.key.toLowerCase() === 'e' && view === 'flow') toggleAll();
       else return;
       e.preventDefault();
@@ -360,6 +384,9 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
           </button>
           <button type="button" role="tab" aria-selected={view === 'context'} className={view === 'context' ? 'on' : ''} onClick={() => setView('context')} title="System prompt, tools, agents, skills and instructions the model was given (3)">
             <Icon name="layers" size={12} /><span className="lbl">Context</span>
+          </button>
+          <button type="button" role="tab" aria-selected={view === 'report'} className={view === 'report' ? 'on' : ''} onClick={() => setView('report')} title="Engineering report: metrics, detected problems, recommendations and derived scores (4)">
+            <Icon name="report" size={12} /><span className="lbl">Report</span>
           </button>
         </div>
         {view === 'flow' && (
@@ -472,6 +499,8 @@ export function SessionViewer({ session: s, detail, onRename, onClearName, onSho
           </div>
         ) : view === 'gantt' ? (
           <ToolGantt events={events} subagents={s.subagents} onJump={jumpTo} />
+        ) : view === 'report' ? (
+          <ReportView session={s} analysis={analysis.analysis} loading={analysis.loading} error={analysis.error} onJump={jumpRef} onReload={analysis.reload} onCompare={() => window.dispatchEvent(new CustomEvent('csv:compare', { detail: { a: s.id } }))} />
         ) : view === 'context' ? (
           <ContextView session={s} ctx={ctx.context} loading={ctx.loading} error={ctx.error} events={events} tab={ctxTab} setTab={(t) => { setCtxTab(t); setCtxFocus(undefined); }} focus={ctxFocus} />
         ) : (

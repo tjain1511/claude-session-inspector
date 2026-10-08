@@ -1,6 +1,7 @@
 // The only place the UI talks to the local bridge. Every request goes to the same
 // origin (127.0.0.1) and carries the per-launch token from the served HTML.
 import type { MemoryReport, PricingReport, Rate, SessionContext, SessionRead, SessionSummary, StatusPayload, SubagentRead, ServerEvent } from '@/types/session';
+import type { AnalysesPayload, SessionAnalysis } from '@/types/analysis';
 
 const token = document.querySelector('meta[name="csv-token"]')?.getAttribute('content') || '';
 
@@ -45,6 +46,8 @@ export const api = {
   memory: () => request<MemoryReport>('/api/memory'),
   setRates: (rates: Record<string, Rate | null>) => request<PricingReport>('/api/pricing', { method: 'PUT', body: JSON.stringify({ rates }) }),
   readContext: (id: string) => request<SessionContext>(`/api/sessions/${id}/context`),
+  readAnalysis: (id: string) => request<SessionAnalysis>(`/api/sessions/${id}/analysis`),
+  analyses: () => request<AnalysesPayload>('/api/analysis'),
   readSubagent: (id: string, agentId: string) => request<SubagentRead>(`/api/sessions/${id}/subagents/${agentId}`),
   readRaw: (id: string, ref: { file: string; line: number; offset: number; length: number }) =>
     request<{ raw: unknown }>(`/api/sessions/${id}/raw?file=${encodeURIComponent(ref.file)}&line=${ref.line}&offset=${ref.offset}&length=${ref.length}`),

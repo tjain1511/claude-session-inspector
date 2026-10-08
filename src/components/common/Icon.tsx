@@ -44,6 +44,9 @@ const PATHS: Record<string, string> = {
   hash: 'M3 6h10M3 10h10M6.5 2.5l-1 11M10.5 2.5l-1 11',
   keyboard: 'M1.5 4h13v8h-13zM4 6.5h.01M6.5 6.5h.01M9 6.5h.01M11.5 6.5h.01M4.5 9.5h7',
   agent: 'M8 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM2.5 14a5.5 5.5 0 0 1 11 0M11 5h3M12.5 3.5v3',
+  chart: 'M2 13.5h12M4 11V7M7.5 11V4M11 11V8.5',
+  compare: 'M2 3h5v10H2zM9 3h5v10H9zM4 7h1M4 9.5h1M11 6h1M11 8.5h1M11 11h1',
+  report: 'M4 2h6l3 3v9H4zM10 2v3h3M6 8h4M6 11h4',
 };
 
 export function Icon({ name, size = 14, className = '' }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {
